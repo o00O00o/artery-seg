@@ -163,7 +163,21 @@ class Probe_Dataset(Dataset):
             probe_img = np.stack(img_stack_list, axis=-1)
             probe_mask = self.env_dict[env_idx]['mask'][pt_idx].astype(np.float)
             probe_mask = np.expand_dims(probe_mask, axis=-1)
+        elif self.args.data_mode == 'image_pair':
+            img_pair = []
+            mask_pair = []
+            pair_idx = min(pt_idx + self.args.image_pair_step, len(self.env_dict[env_idx]['img']) - 1)
+
+            img_pair.append(self.env_dict[env_idx]['img'][pt_idx].astype(np.float))
+            mask_pair.append(self.env_dict[env_idx]['mask'][pt_idx].astype(np.float))
+
+            img_pair.insert(-1, self.env_dict[env_idx]['img'][pair_idx].astype(np.float))
+            mask_pair.insert(-1, self.env_dict[env_idx]['mask'][pair_idx].astype(np.float))
+
+            probe_img = np.stack(img_pair, axis=-1)
+            probe_mask = np.stack(mask_pair, axis=-1)
         else:
+            print(self.args.data_mode + " is not implemented.")
             raise NotImplementedError
 
         # crop img to target size

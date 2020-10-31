@@ -8,7 +8,7 @@ class DiceLossMulticlass_CW(nn.Module):
         super(DiceLossMulticlass_CW, self).__init__()
         self.smooth = 1e-5
 
-    def forward(self, inputs, targets, n_classes, weights=None):
+    def forward(self, inputs, targets, n_classes, weights=None, validation=False):
 
         if weights is not None:
             weights = weights / weights.sum()
@@ -19,6 +19,7 @@ class DiceLossMulticlass_CW(nn.Module):
         N, C = inputs.size()
         prob = torch.softmax(inputs, dim=1)
         t_one_hot = inputs.new_zeros(inputs.size())
+        targets = targets.cuda()
         t_one_hot.scatter_(1, targets, 1.)
 
         if weights is None:
