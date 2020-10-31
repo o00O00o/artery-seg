@@ -12,11 +12,18 @@ def initialization(args):
         initial_channel = 1
     elif args.data_mode == '2.5D':
         initial_channel = args.slices
+    elif args.data_mode == 'image_pair':
+        initial_channel = 1
     else:
         raise NotImplementedError
 
     # network initialization -------------------------------------------------
-    network = MODEL.get_module(initial_channel, args.n_classes, 4, 4, True, True).to(args.device)
+    if args.model == "cosnet":
+        network = MODEL.get_module(args.n_classes)
+    elif args.model == "Vnet":
+        network = MODEL.get_module(initial_channel, args.n_classes, 4, 4, True, True).to(args.device)
+    elif args.model == "cosunet":
+        network = MODEL.get_module(initial_channel, args.n_classes)
 
     def weights_init(m):
         classname = m.__class__.__name__
@@ -26,16 +33,17 @@ def initialization(args):
         elif classname.find('Linear') != -1:
             torch.nn.init.xavier_normal_(m.weight.data)
             torch.nn.init.constant_(m.bias.data)
+    print(str(args.checkpoints_dir) + '/best_model.pth')    
 
     try:
-        checkpoint = torch.load(str(args.experiment_dir) + '/checkpoint/best_model.path')
+        checkpoint = torch.load(str(args.checkpoints_dir) + '/best_model.pth')
         start_epoch = checkpoint['epoch']
         network.load_state_dict(checkpoint['model_state_dict'])
         args.log_string('Use pretrain model')
     except:
         args.log_string('No existing model, starting training from scratch...')
         start_epoch = 0
-        network = network.apply(weights_init)
+        # network = network.apply(weights_init)
 
     # optimizer initialization -----------------------------------------
     if args.optimizer == 'Adam':

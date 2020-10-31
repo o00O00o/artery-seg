@@ -8,20 +8,20 @@ from pathlib import Path
 from dataset import split_dataset, Probe_Dataset
 from torch.utils.data import DataLoader
 from initialization import initialization
-from learning import train, validate
+from learning import train, validate, cos_train, cos_validate
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def parse_args():
     parser = argparse.ArgumentParser('Model')
-    parser.add_argument('--model', type=str, default='Vnet', help='model architecture')
-    parser.add_argument('--data_mode', type=str, default='2.5D', help='data mode')
+    parser.add_argument('--model', type=str, default='cosnet', help='model architecture: Vnet, cosnet')
+    parser.add_argument('--data_mode', type=str, default='image_pair', help='data mode')
     parser.add_argument('--dataset_mode', type=str, default='main_branch', help='dataset mode be to used')
     parser.add_argument('--slices', type=int, default=7, help='slices used in the 2.5D mode')
     parser.add_argument('--n_classes', type=int, default=4, help='classes for segmentation')
     parser.add_argument('--seed', type=int, default=123, help='set seed point')
     parser.add_argument('--crop_size', type=int, default=96, help='size for square patch')
-    parser.add_argument('--batch_size', type=int, default=256, help='Batch Size during training [default: 256]')
+    parser.add_argument('--batch_size', type=int, default=12, help='Batch Size during training [default: 256]')
     parser.add_argument('--epoch', default=300, type=int, help='Epoch to run [default: 300]')
     parser.add_argument('--num_workers', default=4, type=int, help='num workers')
     parser.add_argument('--learning_rate', default=0.001, type=float, help='Initial learning rate [default: 0.001]')
@@ -35,7 +35,9 @@ def parse_args():
     parser.add_argument('--k_fold', default=0, type=int, help='k-fold cross validation')
     parser.add_argument('--train_num', default=0.8, type=int, help='folder name for training set')
     parser.add_argument('--val_num', default=0.2, type=int, help='folder name for validation set')
-    parser.add_argument('--data_dir', default='/Users/gaoyibo/plaques/all_subset', help='folder name for training set')
+    parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset', help='folder name for training set')
+    parser.add_argument('--image_pair_step', type=int, default=3, help='the step between the images in a pair')
+    parser.add_argument('--sample_range', type=int, default=3, help='the sample range used in validation and testing.')
 
     # do not change following flags
     parser.add_argument('--n_weights', type=int, default=None, help='Weights for classes of segmentation or classification')
@@ -114,6 +116,7 @@ def main(args):
 
     # initialization -----------------------------------------------------
     model, optimizer, criterion, start_epoch = initialization(args)
+    model.to(args.device)
 
     global_epoch = 0
     best_loss = 0
@@ -131,7 +134,7 @@ def main(args):
             param_group['lr'] = lr
 
         # train --------------------------------------------------------------
-        train(args, global_epoch, train_loader, model, optimizer, criterion)
+        cos_train(args, global_epoch, train_loader, model, optimizer, criterion)
 
         if epoch % 5 == 0:
             savepath = str(args.checkpoints_dir) + '/model.pth'
@@ -146,7 +149,7 @@ def main(args):
 
         # validate ------------------------------------------------------------
         if epoch % 2 == 0:
-            val_result = validate(args, global_epoch, val_loader, model, optimizer, criterion)
+            val_result = cos_validate(args, global_epoch, val_loader, model, optimizer, criterion)
 
             if val_result[0] > best_loss:
                 best_loss = val_result[0]
