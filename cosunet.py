@@ -4,17 +4,18 @@ import torch.nn.functional as F
 
 class UNetConvBlock(nn.Module):
 
-    def __init__(self, in_size, out_size, padding, batch_norm):
+    def __init__(self, in_size, out_size):
         super(UNetConvBlock, self).__init__()
         block = []
-        block.append(nn.Conv2d(in_size, out_size, kernel_size=3, padding=int(padding)))
+        block.append(nn.Conv2d(in_size, out_size, kernel_size=3, padding=1))
         block.append(nn.ReLU())
+        block.append(nn.BatchNorm2d(out_size))
 
-        if batch_norm:
-            block.append(nn.BatchNorm2d(out_size))
-
-        block.append(nn.Conv2d(out_size, out_size, kernel_size=3, padding=int(padding)))
+        block.append(nn.Conv2d(out_size, out_size, kernel_size=3, padding=1))
         block.append(nn.ReLU())
+        block.append(nn.BatchNorm2d(out_size))
+
+        block.append(nn.MaxPool2d())
 
         self.block = nn.Sequential(*block)  # the elements in the list are seen as independent params due to *
 
@@ -53,24 +54,23 @@ class UNetUpBlock(nn.Module):
 
 class Unet(nn.Module):
 
-    def __init__(self, in_channels=1, n_classes=2, depth=5, wf=6, padding=False, batch_norm=False, up_mode='upconv'):
+    def __init__(self, in_channels=1, depth=5, wf=6, up_mode='upconv'):
         super(Unet, self).__init__()
         assert up_mode in ('upconv', 'upsample')
-        self.padding = padding
         self.depth = depth
         prev_channels = in_channels
 
         self.down_path = nn.ModuleList()
         for i in range(depth):
-            self.down_path.append(UNetConvBlock(prev_channels, 2 ** (wf + i), padding, batch_norm))
+            self.down_path.append(UNetConvBlock(prev_channels, 2 ** (wf + i)))
             prev_channels = 2 ** (wf + i)
 
-        self.up_path = nn.ModuleList()
-        for i in reversed(range(depth - 1)):
-            self.up_path.append(UNetUpBlock(prev_channels, 2 ** (wf + i), up_mode, padding, batch_norm))
-            prev_channels = 2 ** (wf + i)
+#        self.up_path = nn.ModuleList()
+#        for i in reversed(range(depth - 1)):
+#            self.up_path.append(UNetUpBlock(prev_channels, 2 ** (wf + i), up_mode, padding, batch_norm))
+#            prev_channels = 2 ** (wf + i)
 
-        self.last = nn.Conv2d(128, 64, kernel_size=1)
+        self.last = nn.Conv2d(prev_channels, prev_channels, kernel_size=1)
 
     def forward(self, x):
         blocks = []
@@ -88,7 +88,7 @@ class Unet(nn.Module):
 class CoattentionModel(nn.Module):
     def __init__(self, initial_channel, num_classes, all_channel=64):
         super(CoattentionModel, self).__init__()
-        self.encoder = Unet(initial_channel, num_classes, 4, 5, True, True)
+        self.encoder = Unet(initial_channel, 4, 5)
         self.linear_e = nn.Linear(all_channel, all_channel, bias=False)
         self.channel = all_channel
         self.gate = nn.Conv2d(all_channel, 1, kernel_size=1, bias=False)
