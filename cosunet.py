@@ -15,7 +15,7 @@ class UNetConvBlock(nn.Module):
         block.append(nn.ReLU())
         block.append(nn.BatchNorm2d(out_size))
 
-        block.append(nn.MaxPool2d())
+        block.append(nn.MaxPool2d(2))
 
         self.block = nn.Sequential(*block)  # the elements in the list are seen as independent params due to *
 
@@ -73,20 +73,20 @@ class Unet(nn.Module):
         self.last = nn.Conv2d(prev_channels, prev_channels, kernel_size=1)
 
     def forward(self, x):
-        blocks = []
+        #  blocks = []
         for i, down in enumerate(self.down_path):
             x = down(x)
-            if i != len(self.down_path) - 1:
-                blocks.append(x)
-                x_temp = F.max_pool2d(x, 2)
+          #  if i != len(self.down_path) - 1:
+          #      blocks.append(x)
+          #      x_temp = F.max_pool2d(x, 2)
 
         #for i, up in enumerate(self.up_path):
            # x = up(x, blocks[-i - 1])
-        return self.last(x_temp)
+        return self.last(x)
 
 
 class CoattentionModel(nn.Module):
-    def __init__(self, initial_channel, num_classes, all_channel=64):
+    def __init__(self, initial_channel, num_classes, all_channel=256):
         super(CoattentionModel, self).__init__()
         self.encoder = Unet(initial_channel, 4, 5)
         self.linear_e = nn.Linear(all_channel, all_channel, bias=False)
