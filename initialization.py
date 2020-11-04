@@ -24,6 +24,8 @@ def initialization(args):
         network = MODEL.get_module(initial_channel, args.n_classes, 4, 4, True, True).to(args.device)
     elif args.model == "cosunet":
         network = MODEL.get_module(initial_channel, args.n_classes)
+    elif args.model == "cosunetd":
+        network = MODEL.get_module(initial_channel, args.n_classes)
 
     def weights_init(m):
         classname = m.__class__.__name__

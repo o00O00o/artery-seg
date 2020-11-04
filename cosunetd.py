@@ -56,7 +56,7 @@ class UNetUpBlock(nn.Module):
 
 
 class UnetDecoder(nn.Module):
-    def __init(self, in_channels=1, depth=5, wf=6, n_classes=4):
+    def __init__(self, in_channels=1, depth=5, wf=6, n_classes=4):
         super(UnetDecoder, self).__init__()
         self.depth = depth
         prev_channels = in_channels
@@ -66,16 +66,18 @@ class UnetDecoder(nn.Module):
             self.up_path.append(UNetUpBlock(prev_channels, 2 ** (wf + i)))
             prev_channels = 2 ** (wf + i)
 
+        self.upsample = nn.Sequential(nn.ConvTranspose2d(prev_channels, prev_channels, kernel_size=2, stride=2), nn.ReLU(), nn.BatchNorm2d(prev_channels))
         self.last = nn.Sequential(nn.Conv2d(prev_channels, n_classes, kernel_size=1), nn.Sigmoid())
 
     def forward(self, x):
-        for i, up in enumerate(self.down_path):
+        for i, up in enumerate(self.up_path):
             x = up(x)
+        x = self.upsample(x)
         return self.last(x)
 
 
 class CoattentionModel(nn.Module):
-    def __init__(self, initial_channel, num_classes, all_channel=256, depth=4, wf=6):
+    def __init__(self, initial_channel, num_classes, all_channel=256, depth=5, wf=4):
         super(CoattentionModel, self).__init__()
         self.encoder = UnetEncoder(initial_channel, depth, wf)
         self.linear_e = nn.Linear(all_channel, all_channel, bias=False)
