@@ -2,10 +2,10 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 
-class UNetDownBlock(nn.Module):
+class UNetConvBlock(nn.Module):
 
     def __init__(self, in_size, out_size):
-        super(UNetDownBlock, self).__init__()
+        super(UNetConvBlock, self).__init__()
         block = []
         block.append(nn.Conv2d(in_size, out_size, kernel_size=3, padding=1))
         block.append(nn.ReLU())
@@ -23,35 +23,19 @@ class UNetDownBlock(nn.Module):
         out = self.block(x)
         return out
 
-
-class UnetEncoder(nn.Module):
-    def __init__(self, in_channels=1, depth=5, wf=6):
-        super(UnetEncoder, self).__init__()
-        self.depth = depth
-        prev_channels = in_channels
-
-        self.down_path = nn.ModuleList()
-        for i in range(depth):
-            self.down_path.append(UNetDownBlock(prev_channels, 2 ** (wf + i)))
-            prev_channels = 2 ** (wf + i)
-
-        self.last = nn.Conv2d(prev_channels, prev_channels, kernel_size=1)
-
-    def forward(self, x):
-        bridges = []
-        for i, down in enumerate(self.down_path):
-            x = down(x)
-            bridges.append(x)
-        output = self.last(bridges[-1])
-        bridges.pop(-1)
-        return output, bridges
-
-
 class UNetUpBlock(nn.Module):
-    def __init__(self, in_size, out_size):
+    def __init__(self, in_size, out_size, up_mode, padding, batch_norm):
         super(UNetUpBlock, self).__init__()
-        self.up = nn.Sequential(nn.ConvTranspose2d(in_size, out_size, kernel_size=2, stride=2), nn.ReLU(), nn.BatchNorm2d(out_size))
-        self.conv_block = nn.Sequential(nn.Conv2d(in_size, out_size, kernel_size=3, padding=1), nn.ReLU(), nn.BatchNorm2d(out_size))
+
+        # select the upsampling mode
+        if up_mode == 'upconv':
+            self.up = nn.ConvTranspose2d(in_size, out_size, kernel_size=2, stride=2)
+        elif up_mode == 'upsample':
+            self.up = nn.Sequential(
+                nn.Upsample(mode='bilinear', scale_factor=2),
+                nn.Conv2d(in_size, out_size, kernel_size=1),)
+
+        self.conv_block = UNetConvBlock(in_size, out_size, padding, batch_norm)
 
     def center_crop(self, layer, target_size):
         _, _, layer_height, layer_width = layer.size()
@@ -64,34 +48,47 @@ class UNetUpBlock(nn.Module):
         crop1 = self.center_crop(bridge, up.shape[2:])
         out = torch.cat([up, crop1], 1)
         out = self.conv_block(out)
+
         return out
 
 
-class UnetDecoder(nn.Module):
-    def __init__(self, in_channels=1, depth=5, wf=6, n_classes=4):
-        super(UnetDecoder, self).__init__()
+class Unet(nn.Module):
+
+    def __init__(self, in_channels=1, depth=5, wf=6, up_mode='upconv'):
+        super(Unet, self).__init__()
+        assert up_mode in ('upconv', 'upsample')
         self.depth = depth
         prev_channels = in_channels
 
-        self.up_path = nn.ModuleList()
-        for i in reversed(range(depth - 1)):
-            self.up_path.append(UNetUpBlock(prev_channels, 2 ** (wf + i)))
+        self.down_path = nn.ModuleList()
+        for i in range(depth):
+            self.down_path.append(UNetConvBlock(prev_channels, 2 ** (wf + i)))
             prev_channels = 2 ** (wf + i)
 
-        self.upsample = nn.Sequential(nn.ConvTranspose2d(prev_channels, prev_channels, kernel_size=2, stride=2), nn.ReLU(), nn.BatchNorm2d(prev_channels))
-        self.last = nn.Sequential(nn.Conv2d(prev_channels, n_classes, kernel_size=1), nn.Sigmoid())
+#        self.up_path = nn.ModuleList()
+#        for i in reversed(range(depth - 1)):
+#            self.up_path.append(UNetUpBlock(prev_channels, 2 ** (wf + i), up_mode, padding, batch_norm))
+#            prev_channels = 2 ** (wf + i)
 
-    def forward(self, x, bridges):
-        for i, up in enumerate(self.up_path):
-            x = up(x, bridges[-i-1])
-        x = self.upsample(x)
+        self.last = nn.Conv2d(prev_channels, prev_channels, kernel_size=1)
+
+    def forward(self, x):
+        #  blocks = []
+        for i, down in enumerate(self.down_path):
+            x = down(x)
+            # if i != len(self.down_path) - 1:
+            #     blocks.append(x)
+            #     x_temp = F.max_pool2d(x, 2)
+
+            # for i, up in enumerate(self.up_path):
+            # x = up(x, blocks[-i - 1])
         return self.last(x)
 
 
 class CoattentionModel(nn.Module):
-    def __init__(self, initial_channel, num_classes, all_channel=256, depth=5, wf=4):
+    def __init__(self, initial_channel, num_classes, all_channel=256):
         super(CoattentionModel, self).__init__()
-        self.encoder = UnetEncoder(initial_channel, depth, wf)
+        self.encoder = Unet(initial_channel, 4, 5)
         self.linear_e = nn.Linear(all_channel, all_channel, bias=False)
         self.channel = all_channel
         self.gate = nn.Conv2d(all_channel, 1, kernel_size=1, bias=False)
@@ -101,8 +98,9 @@ class CoattentionModel(nn.Module):
         self.bn1 = nn.BatchNorm2d(all_channel)
         self.bn2 = nn.BatchNorm2d(all_channel)
         self.prelu = nn.ReLU(inplace=True)
-        self.decoder1 = UnetDecoder(all_channel, depth, wf, num_classes)
-        self.decoder2 = UnetDecoder(all_channel, depth, wf, num_classes)
+        self.main_classifier1 = nn.Conv2d(all_channel, num_classes, kernel_size=1, bias=True)
+        self.main_classifier2 = nn.Conv2d(all_channel, num_classes, kernel_size=1, bias=True)
+        self.softmax = nn.Sigmoid()
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -112,8 +110,10 @@ class CoattentionModel(nn.Module):
                 m.bias.data.zero_()
 
     def forward(self, input1, input2):  # 注意input2 可以是多帧图像
-        exemplar, bridges1 = self.encoder(input1)
-        query, bridges2 = self.encoder(input2)
+        input_size = input1.size()[2:]
+
+        exemplar = self.encoder(input1)
+        query = self.encoder(input2)
 
         fea_size = query.size()[2:]
         all_dim = fea_size[0]*fea_size[1]
@@ -155,8 +155,14 @@ class CoattentionModel(nn.Module):
         input1_att  = self.prelu(input1_att)
         input2_att  = self.prelu(input2_att)
 
-        x1 = self.decoder1(input1_att, bridges1)
-        x2 = self.decoder2(input2_att, bridges2)
+        x1 = self.main_classifier1(input1_att)
+        x2 = self.main_classifier2(input2_att)
+
+        x1 = F.upsample(x1, input_size, mode='bilinear')  # upsample to the size of input image, scale=8
+        x2 = F.upsample(x2, input_size, mode='bilinear')  # upsample to the size of input image, scale=8
+
+        x1 = self.softmax(x1)
+        x2 = self.softmax(x2)
 
         return x1, x2
 
@@ -169,13 +175,3 @@ class get_module(nn.Module):
 
     def forward(self, x1, x2):
         return self.model(x1, x2)
-
-
-# if __name__ == "__main__":
-#     network = get_module(1, 4)
-#     device = "cpu"
-#     network.to(device)
-#     input1 = torch.zeros((3, 1, 96, 96))
-#     input2 = torch.zeros((3, 1, 96, 96))
-#     x1, x2 = network(input1, input2)
-#     print(x1.shape)

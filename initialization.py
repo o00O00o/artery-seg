@@ -35,7 +35,7 @@ def initialization(args):
         elif classname.find('Linear') != -1:
             torch.nn.init.xavier_normal_(m.weight.data)
             torch.nn.init.constant_(m.bias.data)
-    print(str(args.checkpoints_dir) + '/best_model.pth')    
+    print(str(args.checkpoints_dir) + '/best_model.pth')
 
     try:
         checkpoint = torch.load(str(args.checkpoints_dir) + '/best_model.pth')
