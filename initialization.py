@@ -14,6 +14,8 @@ def initialization(args):
         initial_channel = args.slices
     elif args.data_mode == 'image_pair':
         initial_channel = 1
+    elif args.data_mode == '2.5D_pair':
+        initial_channel = args.slices
     else:
         raise NotImplementedError
 

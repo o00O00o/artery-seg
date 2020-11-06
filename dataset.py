@@ -176,6 +176,34 @@ class Probe_Dataset(Dataset):
 
             probe_img = np.stack(img_pair, axis=-1)
             probe_mask = np.stack(mask_pair, axis=-1)
+        elif self.args.data_mode == '2.5D_pair':
+            step = int((self.args.slices - 1) / 2)
+
+            img_stack_list_1 = []
+            img_stack_list_1.append(self.env_dict[env_idx]['img'][pt_idx].astype(np.float))
+            for i in range(step):
+                s_idx = max(pt_idx - (i+1), 0)
+                e_idx = min(pt_idx + (i+1), len(self.env_dict[env_idx]['img']) - 1)
+                img_stack_list_1.insert(0, self.env_dict[env_idx]['img'][s_idx].astype(np.float))
+                img_stack_list_1.insert(-1, self.env_dict[env_idx]['img'][e_idx].astype(np.float))
+
+            pair_pt_idx = pt_idx + self.args.image_pair_step + step
+            img_stack_list_2 = []
+            img_stack_list_2.append(self.env_dict[env_idx]['img'][pair_pt_idx].astype(np.float))
+            for i in range(step):
+                s_idx = max(pair_pt_idx - (i+1), 0)
+                e_idx = min(pair_pt_idx + (i+1), len(self.env_dict[env_idx]['img']) - 1)
+                img_stack_list_1.insert(0, self.env_dict[env_idx]['img'][s_idx].astype(np.float))
+                img_stack_list_1.insert(-1, self.env_dict[env_idx]['img'][e_idx].astype(np.float))
+
+            img_stack_list = img_stack_list_1.extend(img_stack_list_2)
+            probe_img = np.stack(img_stack_list, axis=-1)
+
+            mask_pair = []
+            mask_pair.append(self.env_dict[env_idx]['img'][pt_idx].astype(np.float))
+            mask_pair.append(self.env_dict[env_idx]['img'][pair_pt_idx].astype(np.float))
+            probe_mask = np.stack(mask_pair, axis=-1)
+
         else:
             print(self.args.data_mode + " is not implemented.")
             raise NotImplementedError

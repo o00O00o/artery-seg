@@ -150,11 +150,20 @@ def cos_train(args, global_epoch, train_loader, model, optimizer, criterion):
         total_inter_class_tmp = [0 for _ in range(args.n_classes)]
         total_union_class_tmp = [0 for _ in range(args.n_classes)]
 
-        img, mask = data['img'], data['mask']
-        target = img[:, :, :, 0].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
-        search = img[:, :, :, 1].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
-        target_mask = mask[:, :, :, 0].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
-        search_mask = mask[:, :, :, 1].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
+        if args.data_mode == "image_pair":
+            img, mask = data['img'], data['mask']
+            target = img[:, :, :, 0].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
+            search = img[:, :, :, 1].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
+            target_mask = mask[:, :, :, 0].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
+            search_mask = mask[:, :, :, 1].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
+        elif args.data_mode == "2.5D_pair":
+            img, mask = data['img'], data['mask']
+            target = img[:, :, :, 0:7].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
+            search = img[:, :, :, 7:-1].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
+            target_mask = mask[:, :, :, 0].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
+            search_mask = mask[:, :, :, 1].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
+        else:
+            raise NotImplementedError
 
         target_pred, search_pred = model(target, search)
 
@@ -163,7 +172,7 @@ def cos_train(args, global_epoch, train_loader, model, optimizer, criterion):
 
         search_pred = search_pred.contiguous().view(search_pred.size(0), args.n_classes, -1)
         search_mask = search_mask.contiguous().view(search_mask.size(0), 1, -1)
-	
+
         loss = criterion(target_pred, target_mask, args.n_classes, weights=args.n_weights) + criterion(search_pred, search_mask, args.n_classes, weights=args.n_weights)
         optimizer.zero_grad()
         loss.backward()
@@ -201,8 +210,9 @@ def cos_train(args, global_epoch, train_loader, model, optimizer, criterion):
     args.log_string('Training mean acc %s:' %(np.around(np.mean(acc_classes[1:]), 4)))
     args.log_string('Training class iou %s:' %(np.around(iou_classes, 4)))
     args.log_string('Training mean iou %s:' %(np.around(np.mean(iou_classes[1:]), 4)))
-    args.log_string('Training class dice %s:' %(np.around(dice_classes, 4))) 
+    args.log_string('Training class dice %s:' %(np.around(dice_classes, 4)))
     args.log_string('Training mean dice %s:' %(np.around(np.mean(dice_classes[1:]), 4)))
+
 def cos_validate(args, global_epoch, val_loader, model, optimizer, criterion):
 
     with torch.no_grad():
@@ -224,9 +234,17 @@ def cos_validate(args, global_epoch, val_loader, model, optimizer, criterion):
             total_union_class_tmp = [0 for _ in range(args.n_classes)]
 
             img, mask = data['img'], data['mask']
-            target = img[:, :, :, 0].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float() 
-            search = img[:, :, :, 1].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
-            mask = mask[:, :, :, 0].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
+            if args.data_mode == 'img_pair':
+                target = img[:, :, :, 0].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
+                search = img[:, :, :, 1].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
+                mask = mask[:, :, :, 0].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
+            elif args.data_mode == '2.5D_pair':
+                target = img[:, :, :, 3].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
+                search = img[:, :, :, 10].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
+                mask = mask[:, :, :, 0].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
+            else:
+                raise NotImplementedError
+
             target_pred, search_pred = model(target, search)
             target_pred = target_pred.contiguous().view(target_pred.size(0), args.n_classes, -1)
             mask = mask.contiguous().view(mask.size(0), 1, -1)
@@ -236,7 +254,7 @@ def cos_validate(args, global_epoch, val_loader, model, optimizer, criterion):
             if args.loss_func.startswith('dice'):
                 preds = F.softmax(target_pred, dim=1).data.max(1)[1]
             elif args.loss_func.startswith('cross_entropy') or args.loss_func.startswith('focal'):
-                preds = F.log_softmax(output, dim=1).data.max(1)[1]
+                preds = F.log_softmax(target_pred, dim=1).data.max(1)[1]
             mask = torch.squeeze(mask, 1)
 
             preds = preds.cpu().numpy()
@@ -268,4 +286,3 @@ def cos_validate(args, global_epoch, val_loader, model, optimizer, criterion):
         args.log_string('Val  mean dice %s:' % (np.around(np.mean(dice_classes[1:]), 4)))
 
     return (np.mean(dice_classes[1:]), dice_classes)
-
