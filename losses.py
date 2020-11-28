@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import torch.functional as F
+import torch.nn.functional as F
 
 
 class DiceLossMulticlass_CW(nn.Module):
@@ -19,7 +19,7 @@ class DiceLossMulticlass_CW(nn.Module):
         N, C = inputs.size()
         prob = torch.softmax(inputs, dim=1)
         t_one_hot = inputs.new_zeros(inputs.size())
-        targets = targets.cuda()
+        targets = targets.to('cpu')
         t_one_hot.scatter_(1, targets, 1.)
 
         if weights is None:
@@ -45,3 +45,17 @@ class CrossEntropy(nn.Module):
         target = torch.squeeze(target, 1)
         wce = F.cross_entropy(output, target.long(), weight=weights)
         return wce
+
+
+def softmax_mse_loss(input_logits, target_logits):
+    assert input_logits.size() == target_logits.size()
+    input_softmax = F.softmax(input_logits, dim=1)
+    target_softmax = F.softmax(target_logits, dim=1)
+    mse_loss = (input_softmax - target_softmax) ** 2
+    return mse_loss
+
+def softmax_kl_loss(input_logits, target_logits):
+    assert input_logits.size() == target_logits.size()
+    input_log_softmax = F.log_softmax(input_logits, dim=1)
+    target_softmax = F.softmax(target_logits, dim=1)
+    return F.kl_divider(input_log_softmax, target_softmax, size_average=False)

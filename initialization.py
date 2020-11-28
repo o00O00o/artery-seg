@@ -1,7 +1,9 @@
+import os
 import importlib
 import shutil
 import torch
 from losses import CrossEntropy, DiceLossMulticlass_CW
+from tensorboardX import SummaryWriter
 
 def initialization(args):
     MODEL = importlib.import_module(args.model)
@@ -20,14 +22,17 @@ def initialization(args):
         raise NotImplementedError
 
     # network initialization -------------------------------------------------
-    if args.model == "cosnet":
-        network = MODEL.get_module(args.n_classes)
-    elif args.model == "Vnet":
-        network = MODEL.get_module(initial_channel, args.n_classes, 4, 4, True, True).to(args.device)
-    elif args.model == "cosunet":
-        network = MODEL.get_module(initial_channel, args.n_classes)
-    elif args.model == "cosunetd":
-        network = MODEL.get_module(initial_channel, args.n_classes)
+    # if args.model == "cosnet":
+    #     network = MODEL.get_module(args.n_classes)
+    # elif args.model == "Vnet":
+    #     network = MODEL.get_module(initial_channel, args.n_classes, 4, 4, True, True).to(args.device)
+    # elif args.model == "cosunet":
+    #     network = MODEL.get_module(initial_channel, args.n_classes)
+    # elif args.model == "cosunetd":
+    #     network = MODEL.get_module(initial_channel, args.n_classes)
+    
+    model = MODEL.get_module(initial_channel, args.n_classes, 4, 4, True, True).to(args.device)
+    ema_model = MODEL.get_module(initial_channel, args.n_classes, 4, 4, True, True)
 
     def weights_init(m):
         classname = m.__class__.__name__
@@ -42,7 +47,9 @@ def initialization(args):
     try:
         checkpoint = torch.load(str(args.checkpoints_dir) + '/best_model.pth')
         start_epoch = checkpoint['epoch']
-        network.load_state_dict(checkpoint['model_state_dict'])
+        model.load_state_dict(checkpoint['model_state_dict'])
+        if not args.baseline:
+            ema_model.load_state_dict(checkpoint['ema_model_state_dict'])
         args.log_string('Use pretrain model')
     except:
         args.log_string('No existing model, starting training from scratch...')
@@ -51,15 +58,15 @@ def initialization(args):
 
     # optimizer initialization -----------------------------------------
     if args.optimizer == 'Adam':
-        optimizer = torch.optim.Adam(network.parameters(), lr=args.learning_rate, betas=(0.9, 0.999), eps=1e-8)
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, betas=(0.9, 0.999), eps=1e-8)
     else:
-        optimizer = torch.optim.SGD(network.parameters(), lr=args.learning_rate, momentum=0.9)
+        optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.9)
 
     # loss initialization ---------------------------------------------
     if args.loss_func == 'dice':
         criterion = DiceLossMulticlass_CW()
     elif args.loss_func == 'cross_entropy':
-        criterion = CrossEntropy(topk_rate=args.topk_rate)
+        criterion = CrossEntropy()
     elif args.loss_func == 'cross_entropy_and_dice':
         criterion_1 = CrossEntropy(topk_rate=args.topk_rate)
         criterion_2 = DiceLossMulticlass_CW()
@@ -67,4 +74,7 @@ def initialization(args):
     else:
         print('unknown loss function:{}'.format(args.loss_func))
 
-    return network, optimizer, criterion, start_epoch
+    # writer initializtion ---------------------------------------------
+    writer = SummaryWriter(os.path.join(args.log_dir, 'runs'))
+
+    return model, ema_model, optimizer, criterion, start_epoch, writer

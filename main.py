@@ -8,14 +8,14 @@ from pathlib import Path
 from dataset import split_dataset, Probe_Dataset
 from torch.utils.data import DataLoader
 from initialization import initialization
-from learning import train, validate, cos_train, cos_validate
+from learning import train, validate, train_mean_teacher
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def parse_args():
     parser = argparse.ArgumentParser('Model')
-    parser.add_argument('--model', type=str, default='cosnet', help='model architecture: Vnet, cosnet')
-    parser.add_argument('--data_mode', type=str, default='image_pair', help='data mode')
+    parser.add_argument('--model', type=str, default='Vnet', help='model architecture: Vnet, cosnet')
+    parser.add_argument('--data_mode', type=str, default='2D', help='data mode')
     parser.add_argument('--dataset_mode', type=str, default='main_branch', help='dataset mode be to used')
     parser.add_argument('--slices', type=int, default=7, help='slices used in the 2.5D mode')
     parser.add_argument('--n_classes', type=int, default=4, help='classes for segmentation')
@@ -29,15 +29,17 @@ def parse_args():
     parser.add_argument('--decay_rate', type=float, default=1e-4, help='weight decay [default: 1e-4]')
     parser.add_argument('--lr_decay', type=float, default=0.7, help='Decay rate for lr decay [default: 0.7]')
     parser.add_argument('--optimizer', type=str, default='Adam', help='Adam or SGD [default: Adam]')
-    parser.add_argument('--loss_func', type=str, default='dice', help='Loss function used for training [default: dice]')
+    parser.add_argument('--loss_func', type=str, default='cross_entropy', help='Loss function used for training [default: dice]')
     parser.add_argument('--log_dir', type=str, default=None, help='Log path [default: None]')
     parser.add_argument('--step_size', type=int, default=50, help='Decay step for lr decay [default: every 10 epochs]')
     parser.add_argument('--k_fold', default=0, type=int, help='k-fold cross validation')
-    parser.add_argument('--train_num', default=0.8, type=int, help='folder name for training set')
-    parser.add_argument('--val_num', default=0.2, type=int, help='folder name for validation set')
-    parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset', help='folder name for training set')
+    parser.add_argument('--train_num', default=0.05, type=int, help='folder name for training set')  # seen as labeled data
+    parser.add_argument('--val_num', default=0.75, type=int, help='folder name for validation set')  # seen as unlabeled data
+    # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset', help='folder name for training set')
+    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset', help='folder name for training set')
     parser.add_argument('--image_pair_step', type=int, default=3, help='the step between the images in a pair')
     parser.add_argument('--sample_range', type=int, default=3, help='the sample range used in validation and testing.')
+    parser.add_argument('--resume', action="store_true", help='whether to resume the experiment')
 
     # do not change following flags
     parser.add_argument('--n_weights', type=int, default=None, help='Weights for classes of segmentation or classification')
@@ -47,6 +49,15 @@ def parse_args():
     parser.add_argument('--log_string', type=str, default=None, help='log string wrapper [default: None]')
     parser.add_argument('--cur_fold', type=int, default=None, help='log string wrapper [default: None]')
     parser.add_argument('--device', type=str, default=None, help='set device type')
+
+    # mean-teacher configurations
+    parser.add_argument('--baseline', action='store_true')
+    parser.add_argument('--consistency-type', type=str, default='mse', help='select the type of consistency criterion')
+    parser.add_argument('--consistency', type=float, default=1.0)
+    parser.add_argument('--consistency_rampup', type=float, default=600.0)
+    parser.add_argument('--val_iteration', type=int, default=10)
+    parser.add_argument('--ema-decay', type=float, default=0.999)
+    
     return parser.parse_args()
 
 def set_seed(args):
@@ -63,7 +74,7 @@ def make_dir_log(args):
     experiment_dir.mkdir(exist_ok=True)
 
     if args.log_dir is None:
-        args.log_dir = 'data_' + args.dataset_mode + '-' + args.model + '-' + args.data_mode + '-' + str(args.n_classes) + '-' + str(args.slices) + '-' + args.loss_func
+        args.log_dir = 'data_' + args.dataset_mode + '-' + args.model + '-' + args.data_mode + '-' + args.loss_func + ('-basline' if args.baseline else '')
         if args.k_fold > 1:
             args.log_dir = 'data_' + args.data_mode + '-fold_' + str(args.cur_fold)
         experiment_dir = experiment_dir.joinpath(args.log_dir)
@@ -103,20 +114,26 @@ def main(args):
     args.log_string('Device using: %s' % args.device)
 
     # prepare dataset --------------------------------------------
-    train_dir, val_dir, _ = split_dataset(args, cur_loop)
-    train_dataset = Probe_Dataset(train_dir, args, augmentation=True)
+    labeled_dir, unlabeled_dir, val_dir = split_dataset(args, cur_loop)
+
+    labeled_set = Probe_Dataset(labeled_dir, args)
     val_dataset = Probe_Dataset(val_dir, args)
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+
+    labeled_loader = DataLoader(labeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
-    args.log_string("The number of training data is %d" % len(train_dataset))
+    unlabeled_set = Probe_Dataset(unlabeled_dir, args)
+    unlabeled_loader = DataLoader(unlabeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+
+    args.log_string("The number of labeled data is %d" % len(labeled_set))
     args.log_string("The number of validation data is %d" % len(val_dataset))
-    args.n_weights = torch.tensor(train_dataset.labelweights).float().to(args.device)
+    args.log_string("The number of unlabeled data is %d" % len(unlabeled_set))
+
+    args.n_weights = torch.tensor(labeled_set.labelweights).float().to(args.device)
     args.log_string("Weights for classes:{}".format(args.n_weights))
 
     # initialization -----------------------------------------------------
-    model, optimizer, criterion, start_epoch = initialization(args)
-    model.to(args.device)
+    model, ema_model, optimizer, criterion, start_epoch, writer = initialization(args)
 
     global_epoch = 0
     best_loss = 0
@@ -134,7 +151,8 @@ def main(args):
             param_group['lr'] = lr
 
         # train --------------------------------------------------------------
-        cos_train(args, global_epoch, train_loader, model, optimizer, criterion)
+        train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, optimizer, criterion, writer)
+        # train(args, global_epoch, labeled_loader, model, optimizer, criterion, writer)
 
         if epoch % 5 == 0:
             savepath = str(args.checkpoints_dir) + '/model.pth'
@@ -144,12 +162,19 @@ def main(args):
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
             }
+
+            if not args.baseline:
+                state['ema_model_state_dict'] = ema_model.state_dict()
+            
             torch.save(state, savepath)
             args.log_string('Saving model...')
 
         # validate ------------------------------------------------------------
         if epoch % 2 == 0:
-            val_result = cos_validate(args, global_epoch, val_loader, model, optimizer, criterion)
+            if not args.baseline:
+                val_result = validate(args, epoch, val_loader, model, optimizer, criterion)
+            else:
+                val_result = validate(args, epoch, val_loader, model, optimizer, criterion)
 
             if val_result[0] > best_loss:
                 best_loss = val_result[0]
@@ -163,9 +188,15 @@ def main(args):
                     'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
                 }
+
+                if not args.baseline:
+                    state['ema_model_state_dict'] = ema_model.state_dict()
+                
                 torch.save(state, savepath)
                 args.log_string('Saving model...')
             args.log_string('Best Epoch, Loss and Result: %f, %f, %s' %(best_epoch, best_loss, best_metric))
+        
+        print("global_epoch: " + global_epoch)
 
         global_epoch += 1
 

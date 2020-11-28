@@ -2,21 +2,35 @@ import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np
+from losses import softmax_mse_loss, softmax_kl_loss
+from transformations import *
 
 
-def train(args, global_epoch, train_loader, model, optimizer, criterion):
+def sigmoid_rampup(current, rampup_length):
+    if rampup_length == 0:
+        return 1.0
+    else:
+        current = np.clip(current, 0.0, rampup_length)
+        phase = 1.0 - current / rampup_length
+        return float(np.exp(-5.0 * phase * phase))
+
+def get_current_consistency_weight(args, epoch):
+    return args.consistency * sigmoid_rampup(epoch, args.consistency_rampup)
+
+def update_ema_variables(model, ema_model, alpha, global_step):
+    alpha = min(1 - 1 / (global_step + 1), alpha)
+    for ema_param, param in zip(ema_model.parameters(), model.parameters()):
+        ema_param.data.mul_(alpha).add_(param.data, alpha=1 - alpha)  # add_(other， alpha)为torch.add()的in-place版， 直接替换，加上other * alpha
+
+def train(args, global_epoch, train_loader, model, optimizer, criterion, writer):
+
     model.train()
-
-    eps = 1e-6
     loss_sum = 0
-    total_correct, total_seen = 0, 0
-    total_seen_class = [0 for _ in range(args.n_classes)]
     total_inter_class = [0 for _ in range(args.n_classes)]
     total_union_class = [0 for _ in range(args.n_classes)]
     num_batches = len(train_loader)
 
     for i, data in tqdm(enumerate(train_loader), total=len(train_loader), smoothing=0.9):
-        total_seen_class_tmp = [0 for _ in range(args.n_classes)]
         total_inter_class_tmp = [0 for _ in range(args.n_classes)]
         total_union_class_tmp = [0 for _ in range(args.n_classes)]
 
@@ -44,28 +58,20 @@ def train(args, global_epoch, train_loader, model, optimizer, criterion):
         preds = preds.cpu().numpy()
         mask = mask.cpu().numpy()
 
-        total_correct += np.sum((preds == mask))
-        total_seen += preds.shape[0] * preds.shape[1]
-
         for l in range(args.n_classes):
-            total_seen_class_tmp[l] += np.sum((mask == l))
             total_inter_class_tmp[l] += np.sum((preds == l) & (mask == l))
             total_union_class_tmp[l] += np.sum((preds == l) | (preds == l))
-            total_seen_class[l] += total_seen_class_tmp[l]
             total_inter_class[l] += total_inter_class_tmp[l]
             total_union_class[l] += total_union_class_tmp[l]
         loss_sum += loss
+        iter_num = global_epoch * num_batches + i
+
+        writer.add_scalar('losses/train_loss', loss, iter_num)
 
     loss_sum /= num_batches
-    acc_classes = np.array(total_inter_class) / np.array(total_seen_class)
-    iou_classes = np.array(np.array(total_inter_class) / np.array(total_union_class) + eps)
     dice_classes = (np.array(total_inter_class) * 2) / (np.array(total_inter_class) + np.array(total_union_class))
 
     args.log_string('Training mean loss: %f' %(loss_sum))
-    args.log_string('Training class acc %s:' %(np.around(acc_classes, 4)))
-    args.log_string('Training mean acc %s:' %(np.around(np.mean(acc_classes[1:]), 4)))
-    args.log_string('Training class iou %s:' %(np.around(iou_classes, 4)))
-    args.log_string('Training mean iou %s:' %(np.around(np.mean(iou_classes[1:]), 4)))
     args.log_string('Training class dice %s:' %(np.around(dice_classes, 4)))
     args.log_string('Training mean dice %s:' %(np.around(np.mean(dice_classes[1:]), 4)))
 
@@ -75,26 +81,22 @@ def validate(args, global_epoch, val_loader, model, optimizer, criterion):
 
         model.eval()
 
-        eps = 1e-6
         loss_sum = 0
-        total_correct, total_seen = 0, 0
-        total_seen_class = [0 for _ in range(args.n_classes)]
         total_inter_class = [0 for _ in range(args.n_classes)]
         total_union_class = [0 for _ in range(args.n_classes)]
         num_batches = len(val_loader)
 
         for i, data in tqdm(enumerate(val_loader), total=len(val_loader), smoothing=0.9):
-            total_seen_class_tmp = [0 for _ in range(args.n_classes)]
             total_inter_class_tmp = [0 for _ in range(args.n_classes)]
             total_union_class_tmp = [0 for _ in range(args.n_classes)]
 
             img, mask = data['img'], data['mask']
-            img = img.permute(0,3,1,2).to(args.device).float()
+            img = img.permute(0,3,1,2).to(args.device).float()  # (batch_size, 1, 96, 96)
             mask = mask.permute(0,3,1,2).to(args.device)
 
             output = model(img)
-            output = output.contiguous().view(output.size(0), args.n_classes, -1)
-            mask = mask.contiguous().view(mask.size(0), 1, -1)
+            output = output.contiguous().view(output.size(0), args.n_classes, -1)  # (batch_size, 4, 96 * 96)
+            mask = mask.contiguous().view(mask.size(0), 1, -1)  # (batch_size, 1, 96 * 96)
 
             loss = criterion(output, mask, args.n_classes, weights=args.n_weights)
 
@@ -102,187 +104,132 @@ def validate(args, global_epoch, val_loader, model, optimizer, criterion):
                 preds = F.softmax(output, dim=1).data.max(1)[1]
             elif args.loss_func.startswith('cross_entropy') or args.loss_func.startswith('focal'):
                 preds = F.log_softmax(output, dim=1).data.max(1)[1]
+            
             mask = torch.squeeze(mask, 1)
 
             preds = preds.cpu().numpy()
             mask = mask.cpu().numpy()
 
-            total_correct += np.sum((preds == mask))
-            total_seen += preds.shape[0] * preds.shape[1]
-
             for l in range(args.n_classes):
-                total_seen_class_tmp[l] += np.sum((mask == l))
                 total_inter_class_tmp[l] += np.sum((preds == l) & (mask == l))
                 total_union_class_tmp[l] += np.sum((preds == l) | (mask == l))
-                total_seen_class[l] += total_seen_class_tmp[l]
                 total_inter_class[l] += total_inter_class_tmp[l]
                 total_union_class[l] += total_union_class_tmp[l]
             loss_sum += loss
 
         loss_sum /= num_batches
-        acc_classes = np.array(total_inter_class) / np.array(total_seen_class)
-        iou_classes = np.array(np.array(total_inter_class) / (np.array(total_union_class) + eps))
         dice_classes = (np.array(total_inter_class) * 2) / (np.array(total_inter_class) + np.array(total_union_class))
 
         args.log_string('Val mean loss: %f' % (loss_sum))
-        args.log_string('Val  class acc %s:' % (np.around(acc_classes, 4)))
-        args.log_string('Val  mean acc %s:' % (np.around(np.mean(acc_classes[1:]), 4)))
-        args.log_string('Val  class iou %s:' % (np.around(iou_classes, 4)))
-        args.log_string('Val  mean iou %s:' % (np.around(np.mean(iou_classes[1:]), 4)))
         args.log_string('Val  class dice %s:' % (np.around(dice_classes, 4)))
         args.log_string('Val  mean dice %s:' % (np.around(np.mean(dice_classes[1:]), 4)))
 
     return (np.mean(dice_classes[1:]), dice_classes)
 
-def cos_train(args, global_epoch, train_loader, model, optimizer, criterion):
-    model.train()
+def train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, optimizer, criterion, writer):
 
-    eps = 1e-6
-    loss_sum = 0
-    total_correct, total_seen = 0, 0
-    total_seen_class = [0 for _ in range(args.n_classes)]
     total_inter_class = [0 for _ in range(args.n_classes)]
     total_union_class = [0 for _ in range(args.n_classes)]
-    num_batches = len(train_loader)
 
-    for i, data in tqdm(enumerate(train_loader), total=len(train_loader), smoothing=0.9):
-        total_seen_class_tmp = [0 for _ in range(args.n_classes)]
+    labeled_num_batches = len(labeled_loader)
+    unlabeled_num_batches = len(unlabeled_loader)
+
+    if not args.baseline:
+        num_iteration_per_epoch = max(labeled_num_batches, unlabeled_num_batches)
+    else:
+        num_iteration_per_epoch = labeled_num_batches
+
+    model.train()
+
+    for batch_idx in tqdm(range(num_iteration_per_epoch)):
+
         total_inter_class_tmp = [0 for _ in range(args.n_classes)]
         total_union_class_tmp = [0 for _ in range(args.n_classes)]
 
-        if args.data_mode == "image_pair":
-            img, mask = data['img'], data['mask']
-            target = img[:, :, :, 0].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
-            search = img[:, :, :, 1].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
-            target_mask = mask[:, :, :, 0].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
-            search_mask = mask[:, :, :, 1].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
-        elif args.data_mode == "2.5D_pair":
-            img, mask = data['img'], data['mask']
-            target = img[:, :, :, 0:7].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
-            search = img[:, :, :, 7:-1].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
-            target_mask = mask[:, :, :, 0].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
-            search_mask = mask[:, :, :, 1].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
+        try:
+            data = labeled_train_iter.next()
+        except:
+            labeled_train_iter = iter(labeled_loader)
+            data = labeled_train_iter.next()
+        
+        inputs_x, targets_x = data['img'], data['mask']
+        inputs_x = inputs_x.permute(0,3,1,2).to(args.device).float()
+        targets_x = targets_x.permute(0,3,1,2).to(args.device)
+
+        inputs_x, targets_x = inputs_x.to(args.device), targets_x.to(args.device)
+
+        if not args.baseline:
+            try:
+                data = unlabeled_train_iter.next()
+            except:
+                unlabeled_train_iter = iter(unlabeled_loader)
+                data = unlabeled_train_iter.next()
+            
+            inputs_u = data['img']
+            inputs_u = inputs_u.permute(0, 3, 1, 2).to(args.device).float()  # (12, 1, 96, 96)
+            inputs_u2 = torch.clone(inputs_u)
+            
+            with torch.no_grad():
+                trans_inputs_u2 = transforms_for_noise(inputs_u2)  # noise transform
+                trans_inputs_u2, rot_mask = transforms_for_rot(trans_inputs_u2)  # rotation transform
+                trans_inputs_u2, flip_mask = transforms_for_flip(trans_inputs_u2)  # flip transform
+                trans_inputs_u2, scale_mask = transforms_for_scale(trans_inputs_u2)  # scale transform
+
+                outputs_u = ema_model(inputs_u)
+                outputs_u_ema = model(trans_inputs_u2)
+
+                outputs_u_ema = transforms_back_scale(outputs_u_ema, scale_mask)
+                outputs_u_ema = transforms_back_flip(outputs_u_ema, flip_mask)
+                outputs_u_ema = transforms_back_rot(outputs_u_ema, rot_mask)
+        
+        iter_num = batch_idx + global_epoch * num_iteration_per_epoch
+
+        logits_x = model(inputs_x)
+        logits_x = logits_x.contiguous().view(logits_x.size(0), args.n_classes, -1)  # (batch_size, 4, 96 * 96)
+        targets_x = targets_x.contiguous().view(targets_x.size(0), 1, -1)  # (batch_size, 1, 96 * 96)
+
+        Lx = criterion(logits_x, targets_x.long(), args.n_classes, args.n_weights)
+
+        if not args.baseline:
+            consistency_weight = get_current_consistency_weight(args, global_epoch)
+            consistency_dist = softmax_mse_loss(outputs_u, outputs_u_ema)
+            consistency_dist = torch.mean(consistency_dist)
+
+            Lu = consistency_weight * consistency_dist
+
+            loss = Lx + Lu
         else:
-            raise NotImplementedError
+            loss = Lx
 
-        target_pred, search_pred = model(target, search)
-
-        target_pred = target_pred.contiguous().view(target_pred.size(0), args.n_classes, -1)
-        target_mask = target_mask.contiguous().view(target_mask.size(0), 1, -1)
-
-        search_pred = search_pred.contiguous().view(search_pred.size(0), args.n_classes, -1)
-        search_mask = search_mask.contiguous().view(search_mask.size(0), 1, -1)
-
-        loss = criterion(target_pred, target_mask, args.n_classes, weights=args.n_weights) + criterion(search_pred, search_mask, args.n_classes, weights=args.n_weights)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-        if args.loss_func.startswith('dice'):
-            preds = target_pred.data.max(1)[1]
-        elif args.loss_func.startswith('cross_entropy'):
-            preds = target_pred.data.max(1)[1]
+        if not args.baseline:
+            update_ema_variables(model, ema_model, args.ema_decay, iter_num)
+        
+        writer.add_scalar('losses/train_loss', loss, iter_num)
+        writer.add_scalar('losses/train_loss_supervised', Lx, iter_num)
+        if not args.baseline:
+            writer.add_scalar('losses/train_loss_un', Lu, iter_num)
+            writer.add_scalar('losses/consistency_weight', consistency_weight, iter_num)
 
-        mask = torch.squeeze(target_mask, 1)
+        if args.loss_func.startswith('dice'):
+            preds = F.softmax(logits_x, dim=1).data.max(1)[1]
+        elif args.loss_func.startswith('cross_entropy'):
+            preds = F.log_softmax(logits_x, dim=1).data.max(1)[1]
+        mask = torch.squeeze(targets_x, 1)
 
         preds = preds.cpu().numpy()
         mask = mask.cpu().numpy()
 
-        total_correct += np.sum((preds == mask))
-        total_seen += preds.shape[0] * preds.shape[1]
-
         for l in range(args.n_classes):
-            total_seen_class_tmp[l] += np.sum((mask == l))
             total_inter_class_tmp[l] += np.sum((preds == l) & (mask == l))
             total_union_class_tmp[l] += np.sum((preds == l) | (preds == l))
-            total_seen_class[l] += total_seen_class_tmp[l]
             total_inter_class[l] += total_inter_class_tmp[l]
             total_union_class[l] += total_union_class_tmp[l]
-        loss_sum += loss
 
-    loss_sum /= num_batches
-    acc_classes = np.array(total_inter_class) / np.array(total_seen_class)
-    iou_classes = np.array(np.array(total_inter_class) / np.array(total_union_class) + eps)
     dice_classes = (np.array(total_inter_class) * 2) / (np.array(total_inter_class) + np.array(total_union_class))
 
-    args.log_string('Training mean loss: %f' %(loss_sum))
-    args.log_string('Training class acc %s:' %(np.around(acc_classes, 4)))
-    args.log_string('Training mean acc %s:' %(np.around(np.mean(acc_classes[1:]), 4)))
-    args.log_string('Training class iou %s:' %(np.around(iou_classes, 4)))
-    args.log_string('Training mean iou %s:' %(np.around(np.mean(iou_classes[1:]), 4)))
     args.log_string('Training class dice %s:' %(np.around(dice_classes, 4)))
     args.log_string('Training mean dice %s:' %(np.around(np.mean(dice_classes[1:]), 4)))
-
-def cos_validate(args, global_epoch, val_loader, model, optimizer, criterion):
-
-    with torch.no_grad():
-
-        model.eval()
-        model.cuda()
-
-        eps = 1e-6
-        loss_sum = 0
-        total_correct, total_seen = 0, 0
-        total_seen_class = [0 for _ in range(args.n_classes)]
-        total_inter_class = [0 for _ in range(args.n_classes)]
-        total_union_class = [0 for _ in range(args.n_classes)]
-        num_batches = len(val_loader)
-
-        for i, data in tqdm(enumerate(val_loader), total=len(val_loader), smoothing=0.9):
-            total_seen_class_tmp = [0 for _ in range(args.n_classes)]
-            total_inter_class_tmp = [0 for _ in range(args.n_classes)]
-            total_union_class_tmp = [0 for _ in range(args.n_classes)]
-
-            img, mask = data['img'], data['mask']
-            if args.data_mode == 'img_pair':
-                target = img[:, :, :, 0].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
-                search = img[:, :, :, 1].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
-                mask = mask[:, :, :, 0].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
-            elif args.data_mode == '2.5D_pair':
-                target = img[:, :, :, 3].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
-                search = img[:, :, :, 10].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
-                mask = mask[:, :, :, 0].unsqueeze(3).permute(0, 3, 1, 2).to(args.device).float()
-            else:
-                raise NotImplementedError
-
-            target_pred, search_pred = model(target, search)
-            target_pred = target_pred.contiguous().view(target_pred.size(0), args.n_classes, -1)
-            mask = mask.contiguous().view(mask.size(0), 1, -1)
-
-            loss = criterion(target_pred, mask, args.n_classes, weights=args.n_weights, validation=True)
-
-            if args.loss_func.startswith('dice'):
-                preds = F.softmax(target_pred, dim=1).data.max(1)[1]
-            elif args.loss_func.startswith('cross_entropy') or args.loss_func.startswith('focal'):
-                preds = F.log_softmax(target_pred, dim=1).data.max(1)[1]
-            mask = torch.squeeze(mask, 1)
-
-            preds = preds.cpu().numpy()
-            mask = mask.cpu().numpy()
-
-            total_correct += np.sum((preds == mask))
-            total_seen += preds.shape[0] * preds.shape[1]
-
-            for l in range(args.n_classes):
-                total_seen_class_tmp[l] += np.sum((mask == l))
-                total_inter_class_tmp[l] += np.sum((preds == l) & (mask == l))
-                total_union_class_tmp[l] += np.sum((preds == l) | (mask == l))
-                total_seen_class[l] += total_seen_class_tmp[l]
-                total_inter_class[l] += total_inter_class_tmp[l]
-                total_union_class[l] += total_union_class_tmp[l]
-            loss_sum += loss
-
-        loss_sum /= num_batches
-        acc_classes = np.array(total_inter_class) / np.array(total_seen_class)
-        iou_classes = np.array(np.array(total_inter_class) / (np.array(total_union_class) + eps))
-        dice_classes = (np.array(total_inter_class) * 2) / (np.array(total_inter_class) + np.array(total_union_class))
-
-        args.log_string('Val mean loss: %f' % (loss_sum))
-        args.log_string('Val  class acc %s:' % (np.around(acc_classes, 4)))
-        args.log_string('Val  mean acc %s:' % (np.around(np.mean(acc_classes[1:]), 4)))
-        args.log_string('Val  class iou %s:' % (np.around(iou_classes, 4)))
-        args.log_string('Val  mean iou %s:' % (np.around(np.mean(iou_classes[1:]), 4)))
-        args.log_string('Val  class dice %s:' % (np.around(dice_classes, 4)))
-        args.log_string('Val  mean dice %s:' % (np.around(np.mean(dice_classes[1:]), 4)))
-
-    return (np.mean(dice_classes[1:]), dice_classes)
