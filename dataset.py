@@ -10,7 +10,7 @@ from imgaug.augmentables.segmaps import SegmentationMapsOnImage
 # import matplotlib.pyplot as plt
 
 
-def split_dataset(args, cur_loop):
+def split_dataset(args):
     # return lists of train, val and test dir paths
     train_num, val_num, data_dir, seed = args.train_num, args.val_num, args.data_dir, args.seed
     random.seed(seed)
@@ -31,21 +31,11 @@ def split_dataset(args, cur_loop):
     print('All dataset num: {}'.format(len(all_dataset)))
 
     # split the dataset -----------------------------------
-    if args.k_fold > 1:  # if cross_validation is implemented
-        fold_length = int(len(all_dataset) / args.k_fold)
-        start_idx = cur_loop * fold_length
-        end_idx = (cur_loop + 1) * fold_length
-        if end_idx > len(all_dataset) - 1:
-            end_idx = len(all_dataset) - 1
-        val_dirs = all_dataset[start_idx:end_idx]
-        train_dirs = [i for i in all_dataset if i not in val_dirs]
-        test_dirs = []
-    else:  # split the dataset according to the proportion
-        train_count = int(math.floor(len(all_dataset) * train_num))
-        val_count = int(math.floor(len(all_dataset) * val_num))
-        train_dirs = all_dataset[:train_count]
-        val_dirs = all_dataset[train_count:train_count+val_count]
-        test_dirs = all_dataset[train_count + val_count:]
+    train_count = int(math.floor(len(all_dataset) * train_num))
+    val_count = int(math.floor(len(all_dataset) * val_num))
+    train_dirs = all_dataset[:train_count]
+    val_dirs = all_dataset[train_count:train_count+val_count]
+    test_dirs = all_dataset[train_count + val_count:]
 
     # select data according to the dataset_mode
     train_set, val_set, test_set = [], [], []

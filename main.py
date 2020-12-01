@@ -8,7 +8,7 @@ from pathlib import Path
 from dataset import split_dataset, Probe_Dataset
 from torch.utils.data import DataLoader
 from initialization import initialization
-from learning import train, validate, train_mean_teacher
+from learning import validate, train_mean_teacher
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -35,8 +35,8 @@ def parse_args():
     parser.add_argument('--k_fold', default=0, type=int, help='k-fold cross validation')
     parser.add_argument('--train_num', default=0.05, type=int, help='folder name for training set')  # seen as labeled data
     parser.add_argument('--val_num', default=0.75, type=int, help='folder name for validation set')  # seen as unlabeled data
-    parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset', help='folder name for training set')
-    # parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset', help='folder name for training set')
+    # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset', help='folder name for training set')
+    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset', help='folder name for training set')
     parser.add_argument('--image_pair_step', type=int, default=3, help='the step between the images in a pair')
     parser.add_argument('--sample_range', type=int, default=3, help='the sample range used in validation and testing.')
     parser.add_argument('--resume', action="store_true", help='whether to resume the experiment')
@@ -114,7 +114,7 @@ def main(args):
     args.log_string('Device using: %s' % args.device)
 
     # prepare dataset --------------------------------------------
-    labeled_dir, unlabeled_dir, val_dir = split_dataset(args, cur_loop)
+    labeled_dir, unlabeled_dir, val_dir = split_dataset(args)
 
     labeled_set = Probe_Dataset(labeled_dir, args)
     val_dataset = Probe_Dataset(val_dir, args)
@@ -166,76 +166,55 @@ def main(args):
                 state['ema_model_state_dict'] = ema_model.state_dict()
             
             torch.save(state, savepath)
-            args.log_string('Saving model...')
 
         # validate ------------------------------------------------------------
-        if epoch % 2 == 0:
+        val_result = validate(args, global_epoch, val_loader, model, optimizer, criterion, writer, is_ema=False)
+
+        if not args.baseline:
+            ema_val_result = validate(args, global_epoch, val_loader, ema_model, optimizer, criterion, writer, is_ema=True)
+            if ema_val_result[0] > val_result[0]:
+                val_result = ema_val_result
+        
+        args.log_string('Val class dice %s:' % (val_result[1]))
+        args.log_string('Val mean dice %s:' % (val_result[0]))
+
+        if val_result[0] > best_dice:
+            best_dice = val_result[0]
+            best_metric = val_result[1]
+            best_epoch = epoch
+
+            savepath = str(args.checkpoints_dir) + '/best_model.pth'
+            args.log_string('Saving at %s' % savepath)
+            state = {
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+            }
+
             if not args.baseline:
-                val_result = validate(args, epoch, val_loader, model, optimizer, criterion)
-                ema_val_result = validate(args, epoch, val_loader, ema_model, optimizer, criterion)
-                if ema_val_result[0] > val_result[0]:
-                        val_result = ema_val_result
-            else:
-                val_result = validate(args, epoch, val_loader, model, optimizer, criterion)
+                state['ema_model_state_dict'] = ema_model.state_dict()
+            
+            torch.save(state, savepath)
 
-            if val_result[0] > best_dice:
-                best_dice = val_result[0]
-                best_metric = val_result[1]
-                best_epoch = epoch
-
-                savepath = str(args.checkpoints_dir) + '/best_model.pth'
-                args.log_string('Saving at %s' % savepath)
-                state = {
-                    'epoch': epoch,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                }
-
-                if not args.baseline:
-                    state['ema_model_state_dict'] = ema_model.state_dict()
-                
-                torch.save(state, savepath)
-                args.log_string('Saving model...')
-            args.log_string('Best Epoch, Dice and Result: %f, %f, %s' %(best_epoch, best_dice, best_metric))
+        args.log_string('Best Epoch, Dice and Result: %d, %f, %s' %(best_epoch, best_dice, best_metric))
         
         global_epoch += 1
 
-    return best_metric
+    return best_dice, best_metric
 
 
 if __name__ == "__main__":
+
     args = parse_args()
+    set_seed(args)
+    make_dir_log(args)
+    best_mean_dice, best_class_dice = main(args)
 
-    result_list = []
+    handlers = args.logger.handlers[:]
+    for handler in handlers:
+        handler.close()
+        args.logger.removeHandler(handler)
 
-    if args.k_fold > 1:
-        loop_time = args.k_fold
-    else:
-        loop_time = 1
-
-    for cur_loop in range(loop_time):
-        args = parse_args()
-        set_seed(args)
-
-        args.cur_fold = cur_loop
-        make_dir_log(args)
-        cur_result = main(args)
-        result_list.append(cur_result)
-
-        if cur_loop < loop_time - 1:
-            handlers = args.logger.handlers[:]
-            for handler in handlers:
-                handler.close()
-                args.logger.removeHandler(handler)
-
-    args.log_string('Final result -----------------------------')
-    for idx in range(len(result_list)):
-        args.log_string('Fold {}:{}\n'.format(idx, result_list[idx]))
-    final_result = np.zeros((4, 1))
-    for item in result_list:
-        for idx, value in enumerate(item):
-            final_result /= args.k_fold
-    final_result /= args.k_fold
-
-    args.log_string('Average result for all folds: {}'.format(list(final_result)))
-    args.log_string('Average result for all: {}'.format(np.mean(list(final_result[1:]))))
+    args.log_string('Final result -----------------------------------------')
+    args.log_string('Best mean dice: {}'.format(best_mean_dice))
+    args.log_string('Best class dice: {}'.format(best_class_dice))

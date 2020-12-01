@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np
-from losses import softmax_mse_loss, softmax_kl_loss
+from losses import softmax_mse_loss
 from transformations import *
 
 
@@ -75,7 +75,7 @@ def train(args, global_epoch, train_loader, model, optimizer, criterion, writer)
     args.log_string('Training class dice %s:' %(np.around(dice_classes, 4)))
     args.log_string('Training mean dice %s:' %(np.around(np.mean(dice_classes), 4)))
 
-def validate(args, global_epoch, val_loader, model, optimizer, criterion):
+def validate(args, global_epoch, val_loader, model, optimizer, criterion, writer, is_ema):
 
     with torch.no_grad():
 
@@ -119,12 +119,17 @@ def validate(args, global_epoch, val_loader, model, optimizer, criterion):
 
         loss_sum /= num_batches
         dice_classes = (np.array(total_inter_class) * 2) / (np.array(total_inter_class) + np.array(total_union_class))
+        dice_classes = np.around(dice_classes, 4)
+        mean_dice = np.mean(dice_classes)
+       
+        if is_ema:
+            writer.add_scalar('losses/ema_val_loss', loss_sum, global_epoch)
+            writer.add_scalar('dice/ema_val_mean_dice', mean_dice, global_epoch)
+        else:
+            writer.add_scalar('losses/val_loss', loss_sum, global_epoch)
+            writer.add_scalar('dice/val_mean_dice', mean_dice, global_epoch)
 
-        args.log_string('Val mean loss: %f' % (loss_sum))
-        args.log_string('Val  class dice %s:' % (np.around(dice_classes, 4)))
-        args.log_string('Val  mean dice %s:' % (np.around(np.mean(dice_classes), 4)))
-
-    return (np.mean(dice_classes), dice_classes)
+    return (mean_dice, dice_classes)
 
 def train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, optimizer, criterion, writer):
 
