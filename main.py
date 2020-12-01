@@ -21,10 +21,10 @@ def parse_args():
     parser.add_argument('--n_classes', type=int, default=4, help='classes for segmentation')
     parser.add_argument('--seed', type=int, default=123, help='set seed point')
     parser.add_argument('--crop_size', type=int, default=96, help='size for square patch')
-    parser.add_argument('--batch_size', type=int, default=12, help='Batch Size during training [default: 256]')
-    parser.add_argument('--epoch', default=300, type=int, help='Epoch to run [default: 300]')
+    parser.add_argument('--batch_size', type=int, default=64, help='Batch Size during training [default: 256]')
+    parser.add_argument('--epoch', default=800, type=int, help='Epoch to run [default: 300]')
     parser.add_argument('--num_workers', default=4, type=int, help='num workers')
-    parser.add_argument('--learning_rate', default=0.001, type=float, help='Initial learning rate [default: 0.001]')
+    parser.add_argument('--learning_rate', default=1e-4, type=float, help='Initial learning rate [default: 0.001]')
     parser.add_argument('--clip', type=float, default=0.4, help='gradient clip, (default: 0.4)')
     parser.add_argument('--decay_rate', type=float, default=1e-4, help='weight decay [default: 1e-4]')
     parser.add_argument('--lr_decay', type=float, default=0.7, help='Decay rate for lr decay [default: 0.7]')
@@ -35,8 +35,8 @@ def parse_args():
     parser.add_argument('--k_fold', default=0, type=int, help='k-fold cross validation')
     parser.add_argument('--train_num', default=0.05, type=int, help='folder name for training set')  # seen as labeled data
     parser.add_argument('--val_num', default=0.75, type=int, help='folder name for validation set')  # seen as unlabeled data
-    # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset', help='folder name for training set')
-    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset', help='folder name for training set')
+    parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset', help='folder name for training set')
+    # parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset', help='folder name for training set')
     parser.add_argument('--image_pair_step', type=int, default=3, help='the step between the images in a pair')
     parser.add_argument('--sample_range', type=int, default=3, help='the sample range used in validation and testing.')
     parser.add_argument('--resume', action="store_true", help='whether to resume the experiment')
@@ -74,7 +74,7 @@ def make_dir_log(args):
     experiment_dir.mkdir(exist_ok=True)
 
     if args.log_dir is None:
-        args.log_dir = 'data_' + args.dataset_mode + '-' + args.model + '-' + args.data_mode + '-' + args.loss_func + ('-basline' if args.baseline else '')
+        args.log_dir = 'labeled-' + str(args.train_num) + '-unlabeled-' + str(args.val_num) + '-weight-' + str(args.consistency) + ('-basline' if args.baseline else '')
         if args.k_fold > 1:
             args.log_dir = 'data_' + args.data_mode + '-fold_' + str(args.cur_fold)
         experiment_dir = experiment_dir.joinpath(args.log_dir)
@@ -136,9 +136,8 @@ def main(args):
     model, ema_model, optimizer, criterion, start_epoch, writer = initialization(args)
 
     global_epoch = 0
-    best_loss = 0
     best_epoch = 0
-    best_metric = None
+    best_dice = 0
     LEARNING_RATE_CLIP = 1e-5
 
     for epoch in range(start_epoch, args.epoch):
@@ -173,11 +172,14 @@ def main(args):
         if epoch % 2 == 0:
             if not args.baseline:
                 val_result = validate(args, epoch, val_loader, model, optimizer, criterion)
+                ema_val_result = validate(args, epoch, val_loader, ema_model, optimizer, criterion)
+                if ema_val_result[0] > val_result[0]:
+                        val_result = ema_val_result
             else:
                 val_result = validate(args, epoch, val_loader, model, optimizer, criterion)
 
-            if val_result[0] > best_loss:
-                best_loss = val_result[0]
+            if val_result[0] > best_dice:
+                best_dice = val_result[0]
                 best_metric = val_result[1]
                 best_epoch = epoch
 
@@ -194,10 +196,8 @@ def main(args):
                 
                 torch.save(state, savepath)
                 args.log_string('Saving model...')
-            args.log_string('Best Epoch, Loss and Result: %f, %f, %s' %(best_epoch, best_loss, best_metric))
+            args.log_string('Best Epoch, Dice and Result: %f, %f, %s' %(best_epoch, best_dice, best_metric))
         
-        print("global_epoch: " + global_epoch)
-
         global_epoch += 1
 
     return best_metric

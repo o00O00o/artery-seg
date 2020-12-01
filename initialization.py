@@ -32,7 +32,7 @@ def initialization(args):
     #     network = MODEL.get_module(initial_channel, args.n_classes)
     
     model = MODEL.get_module(initial_channel, args.n_classes, 4, 4, True, True).to(args.device)
-    ema_model = MODEL.get_module(initial_channel, args.n_classes, 4, 4, True, True)
+    ema_model = MODEL.get_module(initial_channel, args.n_classes, 4, 4, True, True).to(args.device)
 
     def weights_init(m):
         classname = m.__class__.__name__
@@ -45,7 +45,7 @@ def initialization(args):
     print(str(args.checkpoints_dir) + '/best_model.pth')
 
     try:
-        checkpoint = torch.load(str(args.checkpoints_dir) + '/best_model.pth')
+        checkpoint = torch.load(str(args.checkpoints_dir) + '/model.pth')
         start_epoch = checkpoint['epoch']
         model.load_state_dict(checkpoint['model_state_dict'])
         if not args.baseline:

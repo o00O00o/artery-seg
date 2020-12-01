@@ -6,7 +6,7 @@ import torch
 def transforms_for_noise(inputs_u2, std=3e-2):
 
     gaussian = np.random.normal(0, std, inputs_u2.shape)
-    inputs_u2_noise = inputs_u2 + gaussian
+    inputs_u2_noise = inputs_u2 + torch.tensor(gaussian).type_as(inputs_u2)
 
     return inputs_u2_noise
 

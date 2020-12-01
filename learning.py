@@ -73,7 +73,7 @@ def train(args, global_epoch, train_loader, model, optimizer, criterion, writer)
 
     args.log_string('Training mean loss: %f' %(loss_sum))
     args.log_string('Training class dice %s:' %(np.around(dice_classes, 4)))
-    args.log_string('Training mean dice %s:' %(np.around(np.mean(dice_classes[1:]), 4)))
+    args.log_string('Training mean dice %s:' %(np.around(np.mean(dice_classes), 4)))
 
 def validate(args, global_epoch, val_loader, model, optimizer, criterion):
 
@@ -122,9 +122,9 @@ def validate(args, global_epoch, val_loader, model, optimizer, criterion):
 
         args.log_string('Val mean loss: %f' % (loss_sum))
         args.log_string('Val  class dice %s:' % (np.around(dice_classes, 4)))
-        args.log_string('Val  mean dice %s:' % (np.around(np.mean(dice_classes[1:]), 4)))
+        args.log_string('Val  mean dice %s:' % (np.around(np.mean(dice_classes), 4)))
 
-    return (np.mean(dice_classes[1:]), dice_classes)
+    return (np.mean(dice_classes), dice_classes)
 
 def train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, optimizer, criterion, writer):
 
@@ -232,4 +232,4 @@ def train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, mod
     dice_classes = (np.array(total_inter_class) * 2) / (np.array(total_inter_class) + np.array(total_union_class))
 
     args.log_string('Training class dice %s:' %(np.around(dice_classes, 4)))
-    args.log_string('Training mean dice %s:' %(np.around(np.mean(dice_classes[1:]), 4)))
+    args.log_string('Training mean dice %s:' %(np.around(np.mean(dice_classes), 4)))
