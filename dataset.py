@@ -57,7 +57,7 @@ def prepare_data(data_paths, n_classes):
     all_idx_list = []
     env_dict = {}
     env_count = 0
-    labelweights = np.zeros(n_classes)
+    labelweights = np.ones(n_classes)  # use ones to avoid dividing zero
     temp = 0
 
     # read the actual image from the path ---------------------------

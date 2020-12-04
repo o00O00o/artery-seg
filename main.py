@@ -33,10 +33,10 @@ def parse_args():
     parser.add_argument('--log_dir', type=str, default=None, help='Log path [default: None]')
     parser.add_argument('--step_size', type=int, default=50, help='Decay step for lr decay [default: every 10 epochs]')
     parser.add_argument('--k_fold', default=0, type=int, help='k-fold cross validation')
-    parser.add_argument('--train_num', default=0.05, type=int, help='folder name for training set')  # seen as labeled data
-    parser.add_argument('--val_num', default=0.75, type=int, help='folder name for validation set')  # seen as unlabeled data
-    # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset', help='folder name for training set')
-    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset', help='folder name for training set')
+    parser.add_argument('--train_num', default=0.05, type=float, help='folder name for training set')  # seen as labeled data
+    parser.add_argument('--val_num', default=0.75, type=float, help='folder name for validation set')  # seen as unlabeled data
+    parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset', help='folder name for training set')
+    # parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset', help='folder name for training set')
     parser.add_argument('--image_pair_step', type=int, default=3, help='the step between the images in a pair')
     parser.add_argument('--sample_range', type=int, default=3, help='the sample range used in validation and testing.')
     parser.add_argument('--resume', action="store_true", help='whether to resume the experiment')
@@ -57,6 +57,7 @@ def parse_args():
     parser.add_argument('--consistency_rampup', type=float, default=600.0)
     parser.add_argument('--val_iteration', type=int, default=10)
     parser.add_argument('--ema-decay', type=float, default=0.999)
+    parser.add_argument('--all_label', action='store_true')
     
     return parser.parse_args()
 
@@ -113,6 +114,10 @@ def main(args):
     args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     args.log_string('Device using: %s' % args.device)
 
+    if args.all_label:
+	    args.train_num = 0.8
+	    args.val_num = 0.0
+
     # prepare dataset --------------------------------------------
     labeled_dir, unlabeled_dir, val_dir = split_dataset(args)
 
@@ -150,7 +155,10 @@ def main(args):
             param_group['lr'] = lr
 
         # train --------------------------------------------------------------
-        train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, optimizer, criterion, writer)
+	if args.all_label:
+            train_mean_teacher(args, global_epoch, labeled_loader, labeled_loader, model, ema_model, optimizer, criterion, writer)
+	else:
+            train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, optimizer, criterion, writer)
         # train(args, global_epoch, labeled_loader, model, optimizer, criterion, writer)
 
         if epoch % 5 == 0:
