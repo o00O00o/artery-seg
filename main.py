@@ -113,11 +113,7 @@ def main(args):
     # set device used -----------------------------------------------
     args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     args.log_string('Device using: %s' % args.device)
-
-    if args.all_label:
-	    args.train_num = 0.8
-	    args.val_num = 0.0
-
+    
     # prepare dataset --------------------------------------------
     labeled_dir, unlabeled_dir, val_dir = split_dataset(args)
 
@@ -128,7 +124,8 @@ def main(args):
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
     unlabeled_set = Probe_Dataset(unlabeled_dir, args)
-    unlabeled_loader = DataLoader(unlabeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    if len(unlabeled_set) != 0:
+        unlabeled_loader = DataLoader(unlabeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
     args.log_string("The number of labeled data is %d" % len(labeled_set))
     args.log_string("The number of validation data is %d" % len(val_dataset))
@@ -155,9 +152,9 @@ def main(args):
             param_group['lr'] = lr
 
         # train --------------------------------------------------------------
-	if args.all_label:
+        if args.all_label:
             train_mean_teacher(args, global_epoch, labeled_loader, labeled_loader, model, ema_model, optimizer, criterion, writer)
-	else:
+        else:
             train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, optimizer, criterion, writer)
         # train(args, global_epoch, labeled_loader, model, optimizer, criterion, writer)
 
@@ -214,6 +211,9 @@ def main(args):
 if __name__ == "__main__":
 
     args = parse_args()
+    if args.all_label:
+        args.train_num = 0.8
+        args.val_num = 0.0
     set_seed(args)
     make_dir_log(args)
     best_mean_dice, best_class_dice = main(args)
