@@ -12,12 +12,11 @@ from imgaug.augmentables.segmaps import SegmentationMapsOnImage
 
 def split_dataset(args):
     # return lists of train, val and test dir paths
-    train_num, val_num, data_dir, seed = args.train_num, args.val_num, args.data_dir, args.seed
-    random.seed(seed)
+    random.seed(args.seed)
 
     # get the path list of all annotated data -----------------------------------
     all_dataset = []
-    target_paths = sorted(glob.glob(data_dir + '/**/'))
+    target_paths = sorted(glob.glob(args.data_dir + '/**/'))
     for path in target_paths:
         annotated = False
         for dir_path, dir_names, file_names in os.walk(path):
@@ -31,15 +30,15 @@ def split_dataset(args):
     print('All dataset num: {}'.format(len(all_dataset)))
 
     # split the dataset -----------------------------------
-    train_count = int(math.floor(len(all_dataset) * train_num))
-    val_count = int(math.floor(len(all_dataset) * val_num))
-    train_dirs = all_dataset[:train_count]
-    val_dirs = all_dataset[train_count:train_count+val_count]
-    test_dirs = all_dataset[train_count + val_count:]
+    labeled_count = int(math.floor(len(all_dataset) * args.labeled_num))
+    unlabeled_count = int(math.floor(len(all_dataset) * args.unlabeled_num))
+    labeled_dirs = all_dataset[:labeled_count]
+    unlabeled_dirs = all_dataset[labeled_count:labeled_count + unlabeled_count]
+    test_dirs = all_dataset[labeled_count + unlabeled_count:]  # remaining data are used for test
 
     # select data according to the dataset_mode
-    train_set, val_set, test_set = [], [], []
-    for item in zip((train_set, val_set, test_set), (train_dirs, val_dirs, test_dirs)):
+    labeled_set, unlabeled_set, test_set = [], [], []
+    for item in zip((labeled_set, unlabeled_set, test_set), (labeled_dirs, unlabeled_dirs, test_dirs)):
         tar_set, tar_dirs = item
         for path in tar_dirs:
             if args.dataset_mode == 'main_branch':
@@ -51,7 +50,7 @@ def split_dataset(args):
                     if os.path.exists(path + tar_name + '/' + 'mask.nii.gz'):
                         tar_set.append(path + tar_name)
 
-    return train_set, val_set, test_set
+    return labeled_set, unlabeled_set, test_set
 
 def prepare_data(data_paths, n_classes):
     all_idx_list = []

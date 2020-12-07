@@ -75,12 +75,13 @@ def train(args, global_epoch, train_loader, model, optimizer, criterion, writer)
     args.log_string('Training class dice %s:' %(np.around(dice_classes, 4)))
     args.log_string('Training mean dice %s:' %(np.around(np.mean(dice_classes), 4)))
 
+    writer.add_scalar('dice/train_dice', np.mean(dice_classes), global_epoch)
+
 def validate(args, global_epoch, val_loader, model, optimizer, criterion, writer, is_ema):
 
     with torch.no_grad():
 
         model.eval()
-
         loss_sum = 0
         total_inter_class = [0 for _ in range(args.n_classes)]
         total_union_class = [0 for _ in range(args.n_classes)]

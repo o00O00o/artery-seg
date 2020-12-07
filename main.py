@@ -1,4 +1,3 @@
-import os
 import torch
 import random
 import logging
@@ -10,7 +9,6 @@ from torch.utils.data import DataLoader
 from initialization import initialization
 from learning import validate, train_mean_teacher, train
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def parse_args():
     parser = argparse.ArgumentParser('Model')
@@ -25,21 +23,14 @@ def parse_args():
     parser.add_argument('--epoch', default=800, type=int, help='Epoch to run [default: 300]')
     parser.add_argument('--num_workers', default=4, type=int, help='num workers')
     parser.add_argument('--learning_rate', default=1e-4, type=float, help='Initial learning rate [default: 0.001]')
-    parser.add_argument('--clip', type=float, default=0.4, help='gradient clip, (default: 0.4)')
     parser.add_argument('--decay_rate', type=float, default=1e-4, help='weight decay [default: 1e-4]')
     parser.add_argument('--lr_decay', type=float, default=0.7, help='Decay rate for lr decay [default: 0.7]')
+    parser.add_argument('--lr_clip', type=float, default=1e-5, help='learning rate clip')
     parser.add_argument('--optimizer', type=str, default='Adam', help='Adam or SGD [default: Adam]')
     parser.add_argument('--loss_func', type=str, default='cross_entropy', help='Loss function used for training [default: dice]')
-    parser.add_argument('--log_dir', type=str, default=None, help='Log path [default: None]')
     parser.add_argument('--step_size', type=int, default=50, help='Decay step for lr decay [default: every 10 epochs]')
-    parser.add_argument('--k_fold', default=0, type=int, help='k-fold cross validation')
-    parser.add_argument('--train_num', default=0.05, type=float, help='folder name for training set')  # seen as labeled data
-    parser.add_argument('--val_num', default=0.75, type=float, help='folder name for validation set')  # seen as unlabeled data
-    parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset', help='folder name for training set')
-    # parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset', help='folder name for training set')
-    parser.add_argument('--image_pair_step', type=int, default=3, help='the step between the images in a pair')
-    parser.add_argument('--sample_range', type=int, default=3, help='the sample range used in validation and testing.')
-    parser.add_argument('--resume', action="store_true", help='whether to resume the experiment')
+    # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset', help='folder name for training set')
+    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset', help='folder name for training set')
 
     # do not change following flags
     parser.add_argument('--n_weights', type=int, default=None, help='Weights for classes of segmentation or classification')
@@ -47,8 +38,8 @@ def parse_args():
     parser.add_argument('--checkpoints_dir', type=str, default=None, help='Experiment path [default: None]')
     parser.add_argument('--logger', default=None, help='logger')
     parser.add_argument('--log_string', type=str, default=None, help='log string wrapper [default: None]')
-    parser.add_argument('--cur_fold', type=int, default=None, help='log string wrapper [default: None]')
     parser.add_argument('--device', type=str, default=None, help='set device type')
+    parser.add_argument('--log_dir', type=str, default=None, help='Log path [default: None]')
 
     # mean-teacher configurations
     parser.add_argument('--baseline', action='store_true')
@@ -57,7 +48,9 @@ def parse_args():
     parser.add_argument('--consistency_rampup', type=float, default=600.0)
     parser.add_argument('--val_iteration', type=int, default=10)
     parser.add_argument('--ema-decay', type=float, default=0.999)
-    parser.add_argument('--all_label', action='store_true')
+    parser.add_argument('--labeled_num', default=0.05, type=float, help='the proportion of labeled data')
+    parser.add_argument('--unlabeled_num', default=0.75, type=float, help='the proportion of unlabeded data')
+    parser.add_argument('--all_label', action='store_true', help='full supervised configuration if set true')
     
     return parser.parse_args()
 
@@ -75,11 +68,7 @@ def make_dir_log(args):
     experiment_dir.mkdir(exist_ok=True)
 
     if args.log_dir is None:
-        args.log_dir = 'labeled-' + str(args.train_num) + '-unlabeled-' + str(args.val_num) + '-weight-' + str(args.consistency) + ('-basline' if args.baseline else '')
-        if args.k_fold > 1:
-            args.log_dir = 'data_' + args.data_mode + '-fold_' + str(args.cur_fold)
-        experiment_dir = experiment_dir.joinpath(args.log_dir)
-    else:
+        args.log_dir = 'labeled-' + str(args.labeled_num) + '-unlabeled-' + str(args.unlabeled_num) + '-weight-' + str(args.consistency) + ('-basline' if args.baseline else '')
         experiment_dir = experiment_dir.joinpath(args.log_dir)
 
     experiment_dir.mkdir(exist_ok=True)
@@ -105,7 +94,6 @@ def make_dir_log(args):
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
-    log_string('PARAMETER...')
     log_string(args)
     args.logger = logger
 
@@ -118,18 +106,18 @@ def main(args):
     labeled_dir, unlabeled_dir, val_dir = split_dataset(args)
 
     labeled_set = Probe_Dataset(labeled_dir, args)
-    val_dataset = Probe_Dataset(val_dir, args)
-
     labeled_loader = DataLoader(labeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+
+    val_dataset = Probe_Dataset(val_dir, args)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
-    unlabeled_set = Probe_Dataset(unlabeled_dir, args)
-    if len(unlabeled_set) != 0:
+    if len(unlabeled_dir) != 0:
+        unlabeled_set = Probe_Dataset(unlabeled_dir, args)
         unlabeled_loader = DataLoader(unlabeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
     args.log_string("The number of labeled data is %d" % len(labeled_set))
     args.log_string("The number of validation data is %d" % len(val_dataset))
-    args.log_string("The number of unlabeled data is %d" % len(unlabeled_set))
+    args.log_string("The number of unlabeled data is %d" % 0 if len(unlabeled_dir) == 0 else len(unlabeled_set))
 
     args.n_weights = torch.tensor(labeled_set.labelweights).float().to(args.device)
     args.log_string("Weights for classes:{}".format(args.n_weights))
@@ -140,13 +128,12 @@ def main(args):
     global_epoch = 0
     best_epoch = 0
     best_dice = 0
-    LEARNING_RATE_CLIP = 1e-5
 
     for epoch in range(start_epoch, args.epoch):
         args.log_string('**** Epoch %d (%d/%s) ****' % (global_epoch + 1, epoch + 1, args.epoch))
 
         # adjust hyper parameters ---------------------------------------------------------
-        lr = max(args.learning_rate * (args.lr_decay ** (epoch // args.step_size)), LEARNING_RATE_CLIP)
+        lr = max(args.learning_rate * (args.lr_decay ** (epoch // args.step_size)), args.lr_clip)
         args.log_string('Learning rate:%f' % lr)
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
@@ -212,8 +199,8 @@ if __name__ == "__main__":
 
     args = parse_args()
     if args.all_label:
-        args.train_num = 0.8
-        args.val_num = 0.0
+        args.labeled_num = 0.8
+        args.unlabeled_num = 0.0
     set_seed(args)
     make_dir_log(args)
     best_mean_dice, best_class_dice = main(args)
