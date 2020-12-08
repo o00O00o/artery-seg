@@ -24,14 +24,16 @@ def split_dataset(args):
                 if 'mask' in filename:
                     annotated = True
                     break
-            if annotated:
-                all_dataset.append(path)
+        if annotated:
+            all_dataset.append(path)
+
     random.shuffle(all_dataset)
     print('All dataset num: {}'.format(len(all_dataset)))
 
     # split the dataset -----------------------------------
     labeled_count = int(math.floor(len(all_dataset) * args.labeled_num))
     unlabeled_count = int(math.floor(len(all_dataset) * args.unlabeled_num))
+
     labeled_dirs = all_dataset[:labeled_count]
     unlabeled_dirs = all_dataset[labeled_count:labeled_count + unlabeled_count]
     test_dirs = all_dataset[labeled_count + unlabeled_count:]  # remaining data are used for test
@@ -82,7 +84,7 @@ def prepare_data(data_paths, n_classes):
         labelweights[unique] += counts
 
         for i in range(mask_vol.shape[0]):
-            if mask_vol[i, int((mask_vol.shape[1] - 1) / 2), int((mask_vol.shape[2] - 1) / 2)] != 0:
+            if mask_vol[i, int((mask_vol.shape[1] - 1) / 2), int((mask_vol.shape[2] - 1) / 2)] != 0:  # if the slice is labeled
                 all_idx_list.append((i, env_count))
 
         env_dict[env_count] = {'img':mpr_vol, 'mask':mask_vol}
@@ -152,47 +154,6 @@ class Probe_Dataset(Dataset):
             probe_img = np.stack(img_stack_list, axis=-1)
             probe_mask = self.env_dict[env_idx]['mask'][pt_idx].astype(np.float)
             probe_mask = np.expand_dims(probe_mask, axis=-1)
-        elif self.args.data_mode == 'image_pair':
-            img_pair = []
-            mask_pair = []
-            pair_idx = min(pt_idx + self.args.image_pair_step, len(self.env_dict[env_idx]['img']) - 1)
-
-            img_pair.append(self.env_dict[env_idx]['img'][pt_idx].astype(np.float))
-            mask_pair.append(self.env_dict[env_idx]['mask'][pt_idx].astype(np.float))
-
-            img_pair.insert(-1, self.env_dict[env_idx]['img'][pair_idx].astype(np.float))
-            mask_pair.insert(-1, self.env_dict[env_idx]['mask'][pair_idx].astype(np.float))
-
-            probe_img = np.stack(img_pair, axis=-1)
-            probe_mask = np.stack(mask_pair, axis=-1)
-        elif self.args.data_mode == '2.5D_pair':
-            step = int((self.args.slices - 1) / 2)
-
-            img_stack_list_1 = []
-            img_stack_list_1.append(self.env_dict[env_idx]['img'][pt_idx].astype(np.float))
-            for i in range(step):
-                s_idx = max(pt_idx - (i+1), 0)
-                e_idx = min(pt_idx + (i+1), len(self.env_dict[env_idx]['img']) - 1)
-                img_stack_list_1.insert(0, self.env_dict[env_idx]['img'][s_idx].astype(np.float))
-                img_stack_list_1.insert(-1, self.env_dict[env_idx]['img'][e_idx].astype(np.float))
-
-            pair_pt_idx = pt_idx + self.args.image_pair_step + step
-            img_stack_list_2 = []
-            img_stack_list_2.append(self.env_dict[env_idx]['img'][pair_pt_idx].astype(np.float))
-            for i in range(step):
-                s_idx = max(pair_pt_idx - (i+1), 0)
-                e_idx = min(pair_pt_idx + (i+1), len(self.env_dict[env_idx]['img']) - 1)
-                img_stack_list_1.insert(0, self.env_dict[env_idx]['img'][s_idx].astype(np.float))
-                img_stack_list_1.insert(-1, self.env_dict[env_idx]['img'][e_idx].astype(np.float))
-
-            img_stack_list = img_stack_list_1.extend(img_stack_list_2)
-            probe_img = np.stack(img_stack_list, axis=-1)
-
-            mask_pair = []
-            mask_pair.append(self.env_dict[env_idx]['img'][pt_idx].astype(np.float))
-            mask_pair.append(self.env_dict[env_idx]['img'][pair_pt_idx].astype(np.float))
-            probe_mask = np.stack(mask_pair, axis=-1)
-
         else:
             print(self.args.data_mode + " is not implemented.")
             raise NotImplementedError
