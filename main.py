@@ -14,7 +14,7 @@ def parse_args():
     parser = argparse.ArgumentParser('Model')
     parser.add_argument('--model', type=str, default='Vnet', help='model architecture: Vnet, cosnet')
     parser.add_argument('--data_mode', type=str, default='2D', help='data mode')
-    parser.add_argument('--dataset_mode', type=str, default='main_branch', help='dataset mode be to used')
+    parser.add_argument('--dataset_mode', type=str, default='all_branch', help='dataset mode be to used: main_branch or all_branch')
     parser.add_argument('--slices', type=int, default=7, help='slices used in the 2.5D mode')
     parser.add_argument('--n_classes', type=int, default=4, help='classes for segmentation')
     parser.add_argument('--seed', type=int, default=123, help='set seed point')
