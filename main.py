@@ -48,8 +48,8 @@ def parse_args():
     parser.add_argument('--consistency_rampup', type=float, default=600.0)
     parser.add_argument('--val_iteration', type=int, default=10)
     parser.add_argument('--ema-decay', type=float, default=0.999)
-    parser.add_argument('--labeled_num', default=0.05, type=float, help='the proportion of labeled data')
-    parser.add_argument('--unlabeled_num', default=0.75, type=float, help='the proportion of unlabeded data')
+    parser.add_argument('--labeled_num', default=0.06, type=float, help='the proportion of labeled data')
+    parser.add_argument('--unlabeled_num', default=0.74, type=float, help='the proportion of unlabeded data')
     parser.add_argument('--all_label', action='store_true', help='full supervised configuration if set true')
     
     return parser.parse_args()
