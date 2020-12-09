@@ -14,23 +14,9 @@ def initialization(args):
         initial_channel = 1
     elif args.data_mode == '2.5D':
         initial_channel = args.slices
-    elif args.data_mode == 'image_pair':
-        initial_channel = 1
-    elif args.data_mode == '2.5D_pair':
-        initial_channel = args.slices
     else:
         raise NotImplementedError
 
-    # network initialization -------------------------------------------------
-    # if args.model == "cosnet":
-    #     network = MODEL.get_module(args.n_classes)
-    # elif args.model == "Vnet":
-    #     network = MODEL.get_module(initial_channel, args.n_classes, 4, 4, True, True).to(args.device)
-    # elif args.model == "cosunet":
-    #     network = MODEL.get_module(initial_channel, args.n_classes)
-    # elif args.model == "cosunetd":
-    #     network = MODEL.get_module(initial_channel, args.n_classes)
-    
     model = MODEL.get_module(initial_channel, args.n_classes, 4, 4, True, True).to(args.device)
     ema_model = MODEL.get_module(initial_channel, args.n_classes, 4, 4, True, True).to(args.device)
 
@@ -53,8 +39,9 @@ def initialization(args):
         args.log_string('Use pretrain model')
     except:
         args.log_string('No existing model, starting training from scratch...')
+        model = model.apply(weights_init)
+        ema_model = ema_model.apply(weights_init)
         start_epoch = 0
-        # network = network.apply(weights_init)
 
     # optimizer initialization -----------------------------------------
     if args.optimizer == 'Adam':
@@ -67,10 +54,6 @@ def initialization(args):
         criterion = DiceLossMulticlass_CW()
     elif args.loss_func == 'cross_entropy':
         criterion = CrossEntropy()
-    elif args.loss_func == 'cross_entropy_and_dice':
-        criterion_1 = CrossEntropy(topk_rate=args.topk_rate)
-        criterion_2 = DiceLossMulticlass_CW()
-        criterion = (criterion_1, criterion_2)
     else:
         print('unknown loss function:{}'.format(args.loss_func))
 

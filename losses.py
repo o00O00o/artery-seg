@@ -19,7 +19,6 @@ class DiceLossMulticlass_CW(nn.Module):
         N, C = inputs.size()
         prob = torch.softmax(inputs, dim=1)
         t_one_hot = inputs.new_zeros(inputs.size())
-        targets = targets.to('cpu')
         t_one_hot.scatter_(1, targets, 1.)
 
         if weights is None:
