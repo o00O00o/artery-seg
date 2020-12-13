@@ -18,7 +18,7 @@ def parse_args():
     parser.add_argument('--slices', type=int, default=7, help='slices used in the 2.5D mode')
     parser.add_argument('--n_classes', type=int, default=4, help='classes for segmentation')
     parser.add_argument('--seed', type=int, default=123, help='set seed point')
-    parser.add_argument('--crop_size', type=int, default=96, help='size for square patch')
+    parser.add_argument('--crop_size', type=int, default=64, help='size for square patch')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch Size during training [default: 256]')
     parser.add_argument('--epoch', default=800, type=int, help='Epoch to run [default: 300]')
     parser.add_argument('--num_workers', default=4, type=int, help='num workers')
@@ -30,7 +30,9 @@ def parse_args():
     parser.add_argument('--loss_func', type=str, default='cross_entropy', help='Loss function used for training [default: dice]')
     parser.add_argument('--step_size', type=int, default=50, help='Decay step for lr decay [default: every 10 epochs]')
     # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset', help='folder name for training set')
-    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset', help='folder name for training set')
+    # parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset', help='folder name for training set')
+    parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/plaques_v2', help='folder name for training set')
+    # parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v2', help='folder name for training set')
 
     # do not change following flags
     parser.add_argument('--n_weights', type=int, default=None, help='Weights for classes of segmentation or classification')

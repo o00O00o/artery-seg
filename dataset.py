@@ -59,12 +59,17 @@ def prepare_data(data_paths, n_classes):
     env_dict = {}
     env_count = 0
     labelweights = np.ones(n_classes)  # use ones to avoid dividing zero
-    temp = 0
 
     # read the actual image from the path ---------------------------
     for file_path in data_paths:
+
         mpr_path = file_path + '/mpr_100.nii.gz'
-        mask_path = file_path + '/mask.nii.gz'
+        if not os.path.exists(mpr_path):
+            mpr_path = file_path + '/mpr.nii.gz'
+        
+        mask_path = file_path + '/mask_refine.nii.gz'
+        if not os.path.exists(mask_path):
+            mask_path = file_path + '/mask.nii.gz'
 
         mpr_itk = sitk.ReadImage(mpr_path)
         mask_itk = sitk.ReadImage(mask_path)
@@ -75,7 +80,7 @@ def prepare_data(data_paths, n_classes):
         assert mpr_vol.shape == mask_vol.shape, print('Wrong shape')
 
         if n_classes == 4:
-            mask_vol[mask_vol == 4] = 0
+            mask_vol[mask_vol > 3] = 0
         else:
             pass
 
@@ -89,8 +94,6 @@ def prepare_data(data_paths, n_classes):
 
         env_dict[env_count] = {'img':mpr_vol, 'mask':mask_vol}
         env_count += 1
-
-        temp += 1
 
     labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 1.0)
     labelweights /= np.sum(labelweights)
@@ -159,7 +162,7 @@ class Probe_Dataset(Dataset):
             raise NotImplementedError
 
         # crop img to target size
-        probe_img, probe_mask = center_crop(probe_img, probe_mask, self.args.crop_size)
+        # probe_img, probe_mask = center_crop(probe_img, probe_mask, self.args.crop_size)
         probe_mask = probe_mask.astype(np.int32)
 
         # img transformation
