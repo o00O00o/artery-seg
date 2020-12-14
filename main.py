@@ -17,7 +17,7 @@ def parse_args():
     parser.add_argument('--dataset_mode', type=str, default='all_branch', help='dataset mode be to used: main_branch or all_branch')
     parser.add_argument('--slices', type=int, default=7, help='slices used in the 2.5D mode')
     parser.add_argument('--n_classes', type=int, default=4, help='classes for segmentation')
-    parser.add_argument('--seed', type=int, default=123, help='set seed point')
+    parser.add_argument('--seed', type=int, default=13, help='set seed point')
     parser.add_argument('--crop_size', type=int, default=64, help='size for square patch')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch Size during training [default: 256]')
     parser.add_argument('--epoch', default=800, type=int, help='Epoch to run [default: 300]')
@@ -27,8 +27,9 @@ def parse_args():
     parser.add_argument('--lr_decay', type=float, default=0.7, help='Decay rate for lr decay [default: 0.7]')
     parser.add_argument('--lr_clip', type=float, default=1e-5, help='learning rate clip')
     parser.add_argument('--optimizer', type=str, default='Adam', help='Adam or SGD [default: Adam]')
-    parser.add_argument('--loss_func', type=str, default='cross_entropy', help='Loss function used for training [default: dice]')
+    parser.add_argument('--loss_func', type=str, default='dice', help='Loss function used for training [default: dice]')
     parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/plaques_v2', help='folder name for training set')
+    parser.add_argument('--step_size', type=int,  default=50, help='Decay step')
 
     # do not change following flags
     parser.add_argument('--n_weights', type=int, default=None, help='Weights for classes of segmentation or classification')
@@ -139,8 +140,8 @@ def main(args):
 
         # train --------------------------------------------------------------
         if args.all_label:
-            # train_mean_teacher(args, global_epoch, labeled_loader, labeled_loader, model, ema_model, optimizer, criterion, writer)
-            train(args, global_epoch, labeled_loader, model, optimizer, criterion, writer)
+            train_mean_teacher(args, global_epoch, labeled_loader, labeled_loader, model, ema_model, optimizer, criterion, writer)
+            #  train(args, global_epoch, labeled_loader, model, optimizer, criterion, writer)
         else:
             train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, optimizer, criterion, writer)
 

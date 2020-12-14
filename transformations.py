@@ -10,7 +10,7 @@ def transforms_for_noise(inputs_u2, std=3e-2):
 
     return inputs_u2_noise
 
-def transforms_for_scale(ema_inputs, image_size=96):
+def transforms_for_scale(ema_inputs, image_size=64):
 
     scale_mask = np.random.uniform(low=0.9, high=1.1, size=ema_inputs.shape[0])
     scale_mask[9] = 0.8
@@ -37,7 +37,7 @@ def transforms_for_scale(ema_inputs, image_size=96):
 
     return ema_outputs.float(), scale_mask
 
-def transforms_back_scale(ema_inputs, scale_mask, image_size=96):
+def transforms_back_scale(ema_inputs, scale_mask, image_size=64):
     half_size = int(image_size / 2)
     returned_img = np.zeros((ema_inputs.shape[0], image_size, image_size, ema_inputs.shape[1]))  # (12, 96, 96, 4)
     ema_outputs = torch.zeros_like(ema_inputs)  # (12, 4, 96, 96)
