@@ -39,8 +39,8 @@ def initialization(args):
         args.log_string('Use pretrain model')
     except:
         args.log_string('No existing model, starting training from scratch...')
-        model = model.apply(weights_init)
-        ema_model = ema_model.apply(weights_init)
+        # model = model.apply(weights_init)
+        # ema_model = ema_model.apply(weights_init)
         start_epoch = 0
 
     # optimizer initialization -----------------------------------------
