@@ -17,7 +17,7 @@ def parse_args():
     parser.add_argument('--dataset_mode', type=str, default='all_branch', help='dataset mode be to used: main_branch or all_branch')
     parser.add_argument('--slices', type=int, default=7, help='slices used in the 2.5D mode')
     parser.add_argument('--n_classes', type=int, default=4, help='classes for segmentation')
-    parser.add_argument('--seed', type=int, default=13, help='set seed point')
+    parser.add_argument('--seed', type=int, default=4, help='set seed point')
     parser.add_argument('--crop_size', type=int, default=64, help='size for square patch')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch Size during training [default: 256]')
     parser.add_argument('--epoch', default=800, type=int, help='Epoch to run [default: 300]')
@@ -28,7 +28,8 @@ def parse_args():
     parser.add_argument('--lr_clip', type=float, default=1e-5, help='learning rate clip')
     parser.add_argument('--optimizer', type=str, default='Adam', help='Adam or SGD [default: Adam]')
     parser.add_argument('--loss_func', type=str, default='dice', help='Loss function used for training [default: dice]')
-    parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/plaques_v2', help='folder name for training set')
+    # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/plaques_v2', help='folder name for training set')
+    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v2', help='folder name for training set')
     parser.add_argument('--step_size', type=int,  default=50, help='Decay step')
 
     # do not change following flags
@@ -47,8 +48,8 @@ def parse_args():
     parser.add_argument('--consistency_rampup', type=float, default=600.0)
     parser.add_argument('--val_iteration', type=int, default=10)
     parser.add_argument('--ema-decay', type=float, default=0.999)
-    parser.add_argument('--labeled_num', default=0.05, type=float, help='the proportion of labeled data')
-    parser.add_argument('--unlabeled_num', default=0.75, type=float, help='the proportion of unlabeded data')
+    parser.add_argument('--labeled_num', default=0.1, type=float, help='the proportion of labeled data')
+    parser.add_argument('--unlabeled_num', default=0.7, type=float, help='the proportion of unlabeded data')
     parser.add_argument('--all_label', action='store_true', help='full supervised configuration if set true')
     
     return parser.parse_args()
@@ -107,7 +108,7 @@ def main(args):
     labeled_set = Probe_Dataset(labeled_dir, args)
     labeled_loader = DataLoader(labeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
-    val_dataset = Probe_Dataset(val_dir, args)
+    val_dataset = Probe_Dataset(val_dir, args, isVal=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
     if len(unlabeled_dir) != 0:

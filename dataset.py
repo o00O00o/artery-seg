@@ -54,7 +54,7 @@ def split_dataset(args):
 
     return labeled_set, unlabeled_set, test_set
 
-def prepare_data(data_paths, n_classes):
+def prepare_data(data_paths, n_classes, isVal=False):
     all_idx_list = []
     env_dict = {}
     env_count = 0
@@ -124,12 +124,12 @@ def normalize(img):
     return img
 
 class Probe_Dataset(Dataset):
-    def __init__(self, data_paths, args, augmentation=False):
+    def __init__(self, data_paths, args, isVal=False, augmentation=False):
         self.data_paths = data_paths
         self.augmentation = augmentation
         self.args = args
         # labelweights is used in the main function to alleviate unbalance problem
-        self.idx_list, self.env_dict, self.labelweights = prepare_data(self.data_paths, args.n_classes)
+        self.idx_list, self.env_dict, self.labelweights = prepare_data(self.data_paths, args.n_classes, isVal)
 
     def __len__(self):
         length = len(self.idx_list)
