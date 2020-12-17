@@ -46,7 +46,6 @@ def parse_args():
     parser.add_argument('--consistency-type', type=str, default='mse', help='select the type of consistency criterion')
     parser.add_argument('--consistency', type=float, default=1.0)
     parser.add_argument('--consistency_rampup', type=float, default=600.0)
-    parser.add_argument('--val_iteration', type=int, default=10)
     parser.add_argument('--ema-decay', type=float, default=0.999)
     parser.add_argument('--labeled_num', default=0.1, type=float, help='the proportion of labeled data')
     parser.add_argument('--unlabeled_num', default=0.7, type=float, help='the proportion of unlabeded data')
@@ -108,7 +107,7 @@ def main(args):
     labeled_set = Probe_Dataset(labeled_dir, args)
     labeled_loader = DataLoader(labeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
-    val_dataset = Probe_Dataset(val_dir, args, isVal=True)
+    val_dataset = Probe_Dataset(val_dir, args)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
     if len(unlabeled_dir) != 0:

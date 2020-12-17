@@ -5,9 +5,6 @@ import random
 import SimpleITK as sitk
 import numpy as np
 from torch.utils.data import Dataset
-import imgaug.augmenters as iaa
-from imgaug.augmentables.segmaps import SegmentationMapsOnImage
-# import matplotlib.pyplot as plt
 
 
 def split_dataset(args):
@@ -42,65 +39,85 @@ def split_dataset(args):
     labeled_set, unlabeled_set, test_set = [], [], []
     for item in zip((labeled_set, unlabeled_set, test_set), (labeled_dirs, unlabeled_dirs, test_dirs)):
         tar_set, tar_dirs = item
+    
         for path in tar_dirs:
             if args.dataset_mode == 'main_branch':
-                for tar_name in ['1', '13', '20']:  # 1,13,20 are the main branches of the arterney
-                    if os.path.exists(path + tar_name + '/' + 'mask.nii.gz'):
-                        tar_set.append(path + tar_name)
+                name_list = ['1', '13', '20']
             elif args.dataset_mode == 'all_branch':
-                for tar_name in [str(i) for i in range(25)]:
-                    if os.path.exists(path + tar_name + '/' + 'mask.nii.gz'):
-                        tar_set.append(path + tar_name)
+                name_list = [str(i) for i in range(25)]
+            
+            for tar_name in name_list:
+                if os.path.exists(path + tar_name + '/' + 'mask_refine.nii.gz'):
+                    tar_set.append(path + tar_name)
+                elif os.path.exists(path + tar_name + '/' + 'mask.nii.gz'):
+                    tar_set.append(path + tar_name)
 
     return labeled_set, unlabeled_set, test_set
 
-def prepare_data(data_paths, n_classes, isVal=False):
-    all_idx_list = []
-    env_dict = {}
-    env_count = 0
-    labelweights = np.ones(n_classes)  # use ones to avoid dividing zero
+def prepare_data(data_paths, n_classes):
 
-    # read the actual image from the path ---------------------------
+    env_list = []
+    labelweights = np.ones(n_classes)
+
     for file_path in data_paths:
 
-        mpr_path = file_path + '/mpr_100.nii.gz'
-        if not os.path.exists(mpr_path):
-            mpr_path = file_path + '/mpr.nii.gz'
-        
-        mask_path = file_path + '/mask_refine.nii.gz'
-        if not os.path.exists(mask_path):
-            mask_path = file_path + '/mask.nii.gz'
+        try:
+            if os.path.exists(file_path + '/mpr_100.nii.gz'):
+                mpr_path = file_path + '/mpr_100.nii.gz'
+            else:
+                mpr_path = file_path + '/mpr.nii.gz'
 
-        mpr_itk = sitk.ReadImage(mpr_path)
-        mask_itk = sitk.ReadImage(mask_path)
+            if os.path.exists(file_path + '/mask_refine_checked.nii.gz'):
+                mask_path = file_path + '/mask_refine_checked.nii.gz'
+            elif os.path.exists(file_path + '/mask_refine.nii.gz'):
+                mask_path = file_path + '/mask_refine.nii.gz'
+            else:
+                mask_path = file_path + '/mask.nii.gz'
 
-        mpr_vol = sitk.GetArrayFromImage(mpr_itk)
-        mask_vol = sitk.GetArrayFromImage(mask_itk)
+            mpr_itk = sitk.ReadImage(mpr_path)
+            mask_itk = sitk.ReadImage(mask_path)
+            mpr_vol = sitk.GetArrayFromImage(mpr_itk)  # shape: (length, x, y)
+            mask_vol = sitk.GetArrayFromImage(mask_itk)  # shape: (length, x, y)
+            assert mpr_vol.shape == mask_vol.shape, print('Wrong shape')
 
-        assert mpr_vol.shape == mask_vol.shape, print('Wrong shape')
+            # remove anchor voxels
+            mask_vol[mask_vol>5] = 0
 
-        if n_classes == 4:
-            mask_vol[mask_vol > 3] = 0
-        else:
-            pass
+            if n_classes == 4:
+                mask_vol[mask_vol==4]=0
+            elif n_classes == 3:
+                mask_vol[mask_vol==4]=2
+            else:
+                pass
 
-        # np.unique returns the unique elements and counts of the array
-        unique, counts = np.unique(mask_vol, return_counts=True)
-        labelweights[unique] += counts
+            unique, counts = np.unique(mask_vol, return_counts=True)
+            labelweights[unique.astype(int)] += counts
 
-        for i in range(mask_vol.shape[0]):
-            if mask_vol[i, int((mask_vol.shape[1] - 1) / 2), int((mask_vol.shape[2] - 1) / 2)] != 0:  # if the slice is labeled
-                all_idx_list.append((i, env_count))
+            cur_id_list = []
+            for i in range(mask_vol.shape[0]):
+                if mask_vol[i, int((mask_vol.shape[1]-1)/2), int((mask_vol.shape[2]-1)/2)] != 0: # there is mask in center
+                    cur_id_list.append(i)
+                else:
+                    if len(cur_id_list) == 0:
+                        pass
+                    else:
+                        sub_mpr = mpr_vol[cur_id_list[0]:cur_id_list[-1]+1, :, :]
+                        sub_mask = mask_vol[cur_id_list[0]:cur_id_list[-1]+1, :, :]
+                        sub_env_dict = {'img': sub_mpr, 'mask': sub_mask.astype(np.uint8)}
+                        env_list.append(sub_env_dict)
+                        cur_id_list = []
+        except:
+            print('dirty data')
 
-        env_dict[env_count] = {'img':mpr_vol, 'mask':mask_vol}
-        env_count += 1
-
-    labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 1.0)
     labelweights /= np.sum(labelweights)
+    labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 1.0)
 
-    # all_idx_list contains the labelled position of an annotation and the annotation index
-    # env_dict contains the mpr image and the corresponding mask
-    return all_idx_list, env_dict, labelweights
+    index_list = []
+    for env_idx, item in enumerate(env_list):
+        for i in range(item['img'].shape[0]):
+            index_list.append((i, env_idx))
+
+    return index_list, env_list, labelweights
 
 def center_crop(img, mask, crop_size):
     width, height, channel = np.shape(img)
@@ -124,12 +141,11 @@ def normalize(img):
     return img
 
 class Probe_Dataset(Dataset):
-    def __init__(self, data_paths, args, isVal=False, augmentation=False):
+    def __init__(self, data_paths, args):
         self.data_paths = data_paths
-        self.augmentation = augmentation
         self.args = args
         # labelweights is used in the main function to alleviate unbalance problem
-        self.idx_list, self.env_dict, self.labelweights = prepare_data(self.data_paths, args.n_classes, isVal)
+        self.idx_list, self.env_dict, self.labelweights = prepare_data(self.data_paths, args.n_classes)
 
     def __len__(self):
         length = len(self.idx_list)
@@ -161,22 +177,8 @@ class Probe_Dataset(Dataset):
             print(self.args.data_mode + " is not implemented.")
             raise NotImplementedError
 
-        # crop img to target size
-        # probe_img, probe_mask = center_crop(probe_img, probe_mask, self.args.crop_size)
+        probe_img, probe_mask = center_crop(probe_img, probe_mask, self.args.crop_size)
         probe_mask = probe_mask.astype(np.int32)
-
-        # img transformation
-        if self.augmentation:
-            seg_map = SegmentationMapsOnImage(probe_mask, shape=probe_img.shape)
-
-            if random.uniform(0, 1) > 0.3:
-                aug_affine = iaa.Affine(scale=(0.9, 1.1), translate_percent=(-0.05, 0.05), rotate=(-360, 360), shear=(-20, 20), mode='edge')
-                probe_img, seg_map = aug_affine(image=probe_img, segmentation_maps=seg_map)
-                probe_mask = seg_map.get_arr()
-
-            if random.uniform(0, 1) > 0.3:
-                probe_img = adjust_HU(probe_img, value_range=(-50, 50))
-
         probe_img = normalize(probe_img)
         sample = {'img': probe_img, 'mask': probe_mask}
 
