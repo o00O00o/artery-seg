@@ -1,123 +1,201 @@
 import os
-import glob
-import math
 import random
+import pandas as pd
 import SimpleITK as sitk
 import numpy as np
 from torch.utils.data import Dataset
 
 
-def split_dataset(args):
-    # return lists of train, val and test dir paths
-    random.seed(args.seed)
+def record_dataset(args):
+    target_paths = [os.path.join(args.data_dir, str(i)) for i in range(150)]
 
-    # get the path list of all annotated data -----------------------------------
-    all_dataset = []
-    target_paths = sorted(glob.glob(args.data_dir + '/**/'))
+    if args.dataset_mode == 'main_branch':
+        name_list = ['1', '13', '20']
+    elif args.dataset_mode == 'all_branch':
+        name_list = [str(i) for i in range(25)]
+
+    dataset = []
     for path in target_paths:
-        annotated = False
-        for dir_path, dir_names, file_names in os.walk(path):
-            for filename in file_names:
-                if 'mask' in filename:
-                    annotated = True
-                    break
-        if annotated:
-            all_dataset.append(path)
+        for tar_name in name_list:
+            if os.path.exists(os.path.join(path, tar_name, 'mask_refine_checked.nii.gz')):
+                dataset.append(os.path.join(path, tar_name))
+            elif os.path.exists(os.path.join(path, tar_name, 'mask_refine.nii.gz')):
+                dataset.append(os.path.join(path, tar_name))
+            elif os.path.exists(os.path.join(path, tar_name, 'mask.nii.gz')):
+                dataset.append(os.path.join(path, tar_name))
+    
+    case_list = []
+    branch_list = []
+    slice_list = []
 
-    random.shuffle(all_dataset)
-    print('All dataset num: {}'.format(len(all_dataset)))
+    for file_path in dataset:
+        if os.path.exists(os.path.join(file_path, 'mask_refine_checked.nii.gz')):
+            mask_path = os.path.join(file_path, 'mask_refine_checked.nii.gz')
+        elif os.path.exists(os.path.join(file_path, 'mask_refine.nii.gz')):
+            mask_path = os.path.join(file_path, 'mask_refine.nii.gz')
+        else:
+            mask_path = os.path.join(file_path, 'mask.nii.gz')
+
+        mask_itk = sitk.ReadImage(mask_path)
+        mask_vol = sitk.GetArrayFromImage(mask_itk)
+
+        # remove anchor voxels
+        mask_vol[mask_vol>5] = 0
+        mask_vol[mask_vol==4]=0
+
+        for i in range(mask_vol.shape[0]):
+            if mask_vol[i, int((mask_vol.shape[1] - 1) / 2), int((mask_vol.shape[2] - 1) / 2)] != 0:
+                unique = np.unique(mask_vol[i])
+                if 2 in unique or 3 in unique:
+                    case_list.append(file_path.split("/")[6])
+                    branch_list.append(file_path.split("/")[7])
+                    slice_list.append(i)
+        
+    df = pd.DataFrame({'case_id': case_list, 'branch_id': branch_list, 'slice_id': slice_list})
+    df.to_csv('./plaque_info.csv', index=False)
+
+
+def count_dataset(args):
+    target_paths = [os.path.join(args.data_dir, str(i)) for i in range(150)]
+
+    if args.dataset_mode == 'main_branch':
+        name_list = ['1', '13', '20']
+    elif args.dataset_mode == 'all_branch':
+        name_list = [str(i) for i in range(25)]
+
+    dataset = []
+    for path in target_paths:
+        for tar_name in name_list:
+            if os.path.exists(os.path.join(path, tar_name, 'mask_refine_checked.nii.gz')):
+                dataset.append(os.path.join(path, tar_name))
+            elif os.path.exists(os.path.join(path, tar_name, 'mask_refine.nii.gz')):
+                dataset.append(os.path.join(path, tar_name))
+            elif os.path.exists(os.path.join(path, tar_name, 'mask.nii.gz')):
+                dataset.append(os.path.join(path, tar_name))
+    
+    case_count_list = []
+    branch_count = 0
+    slice_count = 0
+    total_list = np.zeros(4)
+    
+    for file_path in dataset:
+        label_count = np.zeros(4)
+
+        if os.path.exists(os.path.join(file_path, 'mask_refine_checked.nii.gz')):
+            mask_path = os.path.join(file_path, 'mask_refine_checked.nii.gz')
+        elif os.path.exists(os.path.join(file_path, 'mask_refine.nii.gz')):
+            mask_path = os.path.join(file_path, 'mask_refine.nii.gz')
+        else:
+            mask_path = os.path.join(file_path, 'mask.nii.gz')
+
+        mask_itk = sitk.ReadImage(mask_path)
+        mask_vol = sitk.GetArrayFromImage(mask_itk)
+
+        # remove anchor voxels
+        mask_vol[mask_vol>5] = 0
+        mask_vol[mask_vol==4]=0
+
+        for i in range(mask_vol.shape[0]):
+            if mask_vol[i, int((mask_vol.shape[1]-1)/2), int((mask_vol.shape[2]-1)/2)] != 0:
+                unique = np.unique(mask_vol[i])
+                label_count[unique.astype(int)] += 1
+        
+        if label_count[3] != 0:
+            branch_count += 1
+            case_count_list.append(file_path.split('/')[6])
+            print(file_path)
+            # print(label_count[3])
+        
+        slice_count += label_count[3]
+        total_list += label_count
+        
+    case_count = len(set(case_count_list))
+    print("Case num contains soft plaque: {}".format(case_count))
+    print("Branch num contains soft plaque: {}".format(branch_count))
+    print("Slice num contains soft plaque: {}".format(int(slice_count)))
+    print("Slice num of each class in the whole dataset is: {}".format(total_list))
+
+
+def split_dataset(args):
+    # get the path list of all annotated data -----------------------------------
+    target_paths = [os.path.join(args.data_dir, str(i)) for i in range(150)]
 
     # split the dataset -----------------------------------
-    labeled_count = int(math.floor(len(all_dataset) * args.labeled_num))
-    unlabeled_count = int(math.floor(len(all_dataset) * args.unlabeled_num))
+    unlabeled_dirs = target_paths[:args.unlabeled_num]
+    labeled_dirs = target_paths[args.unlabeled_num:args.unlabeled_num + args.labeled_num]
+    val_dirs = target_paths[args.unlabeled_num + args.labeled_num:]
 
-    labeled_dirs = all_dataset[:labeled_count]
-    unlabeled_dirs = all_dataset[labeled_count:labeled_count + unlabeled_count]
-    test_dirs = all_dataset[labeled_count + unlabeled_count:]  # remaining data are used for test
+    if args.dataset_mode == 'main_branch':
+        name_list = ['1', '13', '20']
+    elif args.dataset_mode == 'all_branch':
+        name_list = [str(i) for i in range(25)]
 
-    # select data according to the dataset_mode
-    labeled_set, unlabeled_set, test_set = [], [], []
-    for item in zip((labeled_set, unlabeled_set, test_set), (labeled_dirs, unlabeled_dirs, test_dirs)):
+    unlabeled_set, labeled_set, val_set = [], [], []
+    for item in zip((unlabeled_set, labeled_set, val_set), (unlabeled_dirs, labeled_dirs, val_dirs)):
         tar_set, tar_dirs = item
-    
         for path in tar_dirs:
-            if args.dataset_mode == 'main_branch':
-                name_list = ['1', '13', '20']
-            elif args.dataset_mode == 'all_branch':
-                name_list = [str(i) for i in range(25)]
-            
             for tar_name in name_list:
-                if os.path.exists(path + tar_name + '/' + 'mask_refine.nii.gz'):
-                    tar_set.append(path + tar_name)
-                elif os.path.exists(path + tar_name + '/' + 'mask.nii.gz'):
-                    tar_set.append(path + tar_name)
+                if os.path.exists(os.path.join(path, tar_name, 'mask_refine_checked.nii.gz')):
+                    tar_set.append(os.path.join(path, tar_name))
+                elif os.path.exists(os.path.join(path, tar_name, 'mask_refine.nii.gz')):
+                    tar_set.append(os.path.join(path, tar_name))
+                elif os.path.exists(os.path.join(path, tar_name, 'mask.nii.gz')):
+                    tar_set.append(os.path.join(path, tar_name))
 
-    return labeled_set, unlabeled_set, test_set
+    return unlabeled_set, labeled_set, val_set
+
 
 def prepare_data(data_paths, n_classes):
 
-    env_list = []
-    labelweights = np.ones(n_classes)
+    all_idx_list = []
+    env_dict = {}
+    env_count = 0
+    labelweights = np.ones(n_classes).astype(np.long)
 
     for file_path in data_paths:
 
-        try:
-            if os.path.exists(file_path + '/mpr_100.nii.gz'):
-                mpr_path = file_path + '/mpr_100.nii.gz'
-            else:
-                mpr_path = file_path + '/mpr.nii.gz'
+        if os.path.exists(os.path.join(file_path, 'mpr_100.nii.gz')):
+            mpr_path = os.path.join(file_path, 'mpr_100.nii.gz')
+        else:
+            mpr_path = os.path.join(file_path, 'mpr.nii.gz')
 
-            if os.path.exists(file_path + '/mask_refine_checked.nii.gz'):
-                mask_path = file_path + '/mask_refine_checked.nii.gz'
-            elif os.path.exists(file_path + '/mask_refine.nii.gz'):
-                mask_path = file_path + '/mask_refine.nii.gz'
-            else:
-                mask_path = file_path + '/mask.nii.gz'
+        if os.path.exists(os.path.join(file_path, 'mask_refine_checked.nii.gz')):
+            mask_path = os.path.join(file_path, 'mask_refine_checked.nii.gz')
+        elif os.path.exists(os.path.join(file_path, 'mask_refine.nii.gz')):
+            mask_path = os.path.join(file_path, 'mask_refine.nii.gz')
+        else:
+            mask_path = os.path.join(file_path, 'mask.nii.gz')
 
-            mpr_itk = sitk.ReadImage(mpr_path)
-            mask_itk = sitk.ReadImage(mask_path)
-            mpr_vol = sitk.GetArrayFromImage(mpr_itk)  # shape: (length, x, y)
-            mask_vol = sitk.GetArrayFromImage(mask_itk)  # shape: (length, x, y)
-            assert mpr_vol.shape == mask_vol.shape, print('Wrong shape')
+        mpr_itk = sitk.ReadImage(mpr_path)
+        mask_itk = sitk.ReadImage(mask_path)
+        mpr_vol = sitk.GetArrayFromImage(mpr_itk)
+        mask_vol = sitk.GetArrayFromImage(mask_itk)
+        assert mpr_vol.shape == mask_vol.shape, print('Wrong shape')
 
-            # remove anchor voxels
-            mask_vol[mask_vol>5] = 0
+        # remove anchor voxels
+        mask_vol[mask_vol>5] = 0
 
-            if n_classes == 4:
-                mask_vol[mask_vol==4]=0
-            elif n_classes == 3:
-                mask_vol[mask_vol==4]=2
-            else:
-                pass
+        if n_classes == 4:
+            mask_vol[mask_vol==4]=0
+        elif n_classes == 3:
+            mask_vol[mask_vol==4]=2
+        else:
+            pass
 
-            unique, counts = np.unique(mask_vol, return_counts=True)
-            labelweights[unique.astype(int)] += counts
+        unique, counts = np.unique(mask_vol, return_counts=True)
+        labelweights[unique] += counts
 
-            cur_id_list = []
-            for i in range(mask_vol.shape[0]):
-                if mask_vol[i, int((mask_vol.shape[1]-1)/2), int((mask_vol.shape[2]-1)/2)] != 0: # there is mask in center
-                    cur_id_list.append(i)
-                else:
-                    if len(cur_id_list) == 0:
-                        pass
-                    else:
-                        sub_mpr = mpr_vol[cur_id_list[0]:cur_id_list[-1]+1, :, :]
-                        sub_mask = mask_vol[cur_id_list[0]:cur_id_list[-1]+1, :, :]
-                        sub_env_dict = {'img': sub_mpr, 'mask': sub_mask.astype(np.uint8)}
-                        env_list.append(sub_env_dict)
-                        cur_id_list = []
-        except:
-            print('dirty data')
+        for i in range(mask_vol.shape[0]):
+            if mask_vol[i, int((mask_vol.shape[1] - 1) / 2), int((mask_vol.shape[2] - 1) / 2)] != 0:
+                all_idx_list.append((i, env_count))
 
-    labelweights /= np.sum(labelweights)
+        env_dict[env_count] = {'img': mpr_vol, 'mask': mask_vol}
+        env_count += 1
+
+    labelweights = labelweights / np.sum(labelweights)
     labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 1.0)
 
-    index_list = []
-    for env_idx, item in enumerate(env_list):
-        for i in range(item['img'].shape[0]):
-            index_list.append((i, env_idx))
-
-    return index_list, env_list, labelweights
+    return all_idx_list, env_dict, labelweights
 
 def center_crop(img, mask, crop_size):
     width, height, channel = np.shape(img)

@@ -4,10 +4,11 @@ import logging
 import numpy as np
 import argparse
 from pathlib import Path
-from dataset import split_dataset, Probe_Dataset
-from torch.utils.data import DataLoader
+from dataset import split_dataset, Probe_Dataset, count_dataset, record_dataset
+from torch.utils.data import DataLoader, ConcatDataset
 from initialization import initialization
 from learning import validate, train_mean_teacher, train
+from over_sample import AugmentDataset
 
 
 def parse_args():
@@ -29,8 +30,8 @@ def parse_args():
     parser.add_argument('--optimizer', type=str, default='Adam', help='Adam or SGD [default: Adam]')
     parser.add_argument('--loss_func', type=str, default='dice', help='Loss function used for training [default: dice]')
     # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/plaques_v2', help='folder name for training set')
-    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v2', help='folder name for training set')
-    parser.add_argument('--step_size', type=int,  default=50, help='Decay step')
+    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
+    parser.add_argument('--step_size', type=int, default=50, help='Decay step')
 
     # do not change following flags
     parser.add_argument('--n_weights', type=int, default=None, help='Weights for classes of segmentation or classification')
@@ -47,9 +48,13 @@ def parse_args():
     parser.add_argument('--consistency', type=float, default=1.0)
     parser.add_argument('--consistency_rampup', type=float, default=600.0)
     parser.add_argument('--ema-decay', type=float, default=0.999)
-    parser.add_argument('--labeled_num', default=0.1, type=float, help='the proportion of labeled data')
-    parser.add_argument('--unlabeled_num', default=0.7, type=float, help='the proportion of unlabeded data')
     parser.add_argument('--all_label', action='store_true', help='full supervised configuration if set true')
+    parser.add_argument('--case_num', type=int, default=150, help='the num of total case')
+    parser.add_argument('--unlabeled_num', default=125, type=float, help='the num of unlabeded case')
+    parser.add_argument('--labeled_num', default=15, type=float, help='the num of labeled case')
+    parser.add_argument('--times', default=5, type=int)
+    parser.add_argument('--aug_dir', default='./plaque_info.csv', type=str)
+    parser.add_argument('--over_sample', default=True, type=bool)
     
     return parser.parse_args()
 
@@ -99,27 +104,29 @@ def make_dir_log(args):
 def main(args):
     # set device used -----------------------------------------------
     args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    args.log_string('Device using: %s' % args.device)
+
+    # print dataset information ------------------------------------
+    # record_dataset(args)
+    # count_dataset(args)
     
     # prepare dataset --------------------------------------------
-    labeled_dir, unlabeled_dir, val_dir = split_dataset(args)
+    unlabeled_dir, labeled_dir, val_dir = split_dataset(args)
 
+    unlabeled_set = Probe_Dataset(unlabeled_dir, args)
     labeled_set = Probe_Dataset(labeled_dir, args)
+    val_set = Probe_Dataset(val_dir, args)
+
+    if args.over_sample:
+        unlabeled_set = ConcatDataset([unlabeled_set, AugmentDataset(args, 'unlabel')])
+        labeled_set = ConcatDataset([labeled_set, AugmentDataset(args, 'label')])
+
+    unlabeled_loader = DataLoader(unlabeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     labeled_loader = DataLoader(labeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    val_loader = DataLoader(val_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
-    val_dataset = Probe_Dataset(val_dir, args)
-    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-
-    if len(unlabeled_dir) != 0:
-        unlabeled_set = Probe_Dataset(unlabeled_dir, args)
-        unlabeled_loader = DataLoader(unlabeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-
+    args.log_string("The number of unlabeled data is %d" % len(unlabeled_set))
     args.log_string("The number of labeled data is %d" % len(labeled_set))
-    args.log_string("The number of validation data is %d" % len(val_dataset))
-    args.log_string("The number of unlabeled data is %d" % 0 if len(unlabeled_dir) == 0 else len(unlabeled_set))
-
-    args.n_weights = torch.tensor(labeled_set.labelweights).float().to(args.device)
-    args.log_string("Weights for classes:{}".format(args.n_weights))
+    args.log_string("The number of validation data is %d" % len(val_set))
 
     # initialization -----------------------------------------------------
     model, ema_model, optimizer, criterion, start_epoch, writer = initialization(args)
@@ -198,9 +205,11 @@ def main(args):
 if __name__ == "__main__":
 
     args = parse_args()
+
     if args.all_label:
-        args.labeled_num = 0.8
-        args.unlabeled_num = 0.0
+        args.labeled_num = 140
+        args.unlabeled_num = 0
+
     set_seed(args)
     make_dir_log(args)
     best_mean_dice, best_class_dice = main(args)
