@@ -93,10 +93,10 @@ class AugmentDataset(Dataset):
         return sample
 
 
-if __name__ == "__main__":
-    args = parse_args()
-    args.aug_list_dir = './plaque_info.csv'
-    aug_dataset = AugmentDataset(args, 'label')
+# if __name__ == "__main__":
+    # args = parse_args()
+    # args.aug_list_dir = './plaque_info.csv'
+    # aug_dataset = AugmentDataset(args, 'label')
     # for i in range(len(aug_dataset)):
     #     img = aug_dataset[i]['img']
     #     mask = aug_dataset[i]['mask']
@@ -104,8 +104,8 @@ if __name__ == "__main__":
     #     if 2 in unique or 3 in unique:
     #         print("Correct")
 
-    unlabeled_dir, labeled_dir, val_dir = split_dataset(args)
-    labeled_set = Probe_Dataset(labeled_dir, args)
-    union_set = ConcatDataset([labeled_set, aug_dataset])
-    print(union_set.labelweights)
-    print(len(union_set))
+    # unlabeled_dir, labeled_dir, val_dir = split_dataset(args)
+    # labeled_set = Probe_Dataset(labeled_dir, args)
+    # union_set = ConcatDataset([labeled_set, aug_dataset])
+    # print(union_set.labelweights)
+    # print(len(union_set))

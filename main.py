@@ -50,8 +50,8 @@ def parse_args():
     parser.add_argument('--ema-decay', type=float, default=0.999)
     parser.add_argument('--all_label', action='store_true', help='full supervised configuration if set true')
     parser.add_argument('--case_num', type=int, default=150, help='the num of total case')
-    parser.add_argument('--unlabeled_num', default=125, type=float, help='the num of unlabeded case')
-    parser.add_argument('--labeled_num', default=15, type=float, help='the num of labeled case')
+    parser.add_argument('--unlabeled_num', default=125, type=int, help='the num of unlabeded case')
+    parser.add_argument('--labeled_num', default=15, type=int, help='the num of labeled case')
     parser.add_argument('--times', default=5, type=int)
     parser.add_argument('--aug_list_dir', default='./plaque_info.csv', type=str)
     parser.add_argument('--over_sample', default=True, type=bool)
@@ -120,9 +120,12 @@ def main(args):
         unlabeled_set = ConcatDataset([unlabeled_set, AugmentDataset(args, 'unlabel')])
         labeled_set = ConcatDataset([labeled_set, AugmentDataset(args, 'label')])
 
-    unlabeled_loader = DataLoader(unlabeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-    labeled_loader = DataLoader(labeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-    val_loader = DataLoader(val_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    try:
+        labeled_loader = DataLoader(labeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+        val_loader = DataLoader(val_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+        unlabeled_loader = DataLoader(unlabeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    except:
+        print("Empty unlabel_set")
 
     args.log_string("The number of unlabeled data is %d" % len(unlabeled_set))
     args.log_string("The number of labeled data is %d" % len(labeled_set))
@@ -207,7 +210,7 @@ if __name__ == "__main__":
     args = parse_args()
 
     if args.all_label:
-        args.labeled_num = 140
+        args.labeled_num = args.labeled_num + args.unlabeded_num
         args.unlabeled_num = 0
 
     set_seed(args)
