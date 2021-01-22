@@ -53,7 +53,7 @@ def parse_args():
     parser.add_argument('--unlabeled_num', default=125, type=float, help='the num of unlabeded case')
     parser.add_argument('--labeled_num', default=15, type=float, help='the num of labeled case')
     parser.add_argument('--times', default=5, type=int)
-    parser.add_argument('--aug_dir', default='./plaque_info.csv', type=str)
+    parser.add_argument('--aug_list_dir', default='./plaque_info.csv', type=str)
     parser.add_argument('--over_sample', default=True, type=bool)
     
     return parser.parse_args()

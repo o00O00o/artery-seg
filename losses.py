@@ -22,7 +22,7 @@ class DiceLossMulticlass_CW(nn.Module):
         t_one_hot.scatter_(1, targets, 1.)
 
         if weights is None:
-            iflat = prob.contiguous().view(-1, inputs.size(1))
+            iflat = prob.contiguous().view(-1)
             tflat = t_one_hot.contiguous().view(-1)
             intersection = (iflat * tflat).sum()
             return 1 - ((2. * intersection) / (iflat.sum() + tflat.sum() + self.smooth))

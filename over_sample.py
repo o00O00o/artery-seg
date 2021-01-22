@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 import SimpleITK as sitk
 import imgaug.augmenters as iaa
-from main import parse_args
 from dataset import Probe_Dataset, split_dataset, normalize, center_crop, adjust_HU
 from torch.utils.data import ConcatDataset, Dataset
 from imgaug.augmentables.segmaps import SegmentationMapsOnImage
@@ -53,6 +52,7 @@ def prepare_data(data_paths, query_table, times):
 
 class AugmentDataset(Dataset):
     def __init__(self, args, type='unlabel'):
+        self.args = args
         df = pd.read_csv(args.aug_list_dir)
 
         if type == 'unlabel':
@@ -77,7 +77,7 @@ class AugmentDataset(Dataset):
         probe_img = np.expand_dims(probe_img, axis=-1)
         probe_mask = np.expand_dims(probe_mask, axis=-1)
 
-        probe_img, probe_mask = center_crop(probe_img, probe_mask, args.crop_size)
+        probe_img, probe_mask = center_crop(probe_img, probe_mask, self.args.crop_size)
         probe_mask = probe_mask.astype(np.int32)
 
         # augmentation
