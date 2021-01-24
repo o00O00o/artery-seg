@@ -18,6 +18,7 @@ def parse_args():
     parser.add_argument('--unlabeled_num', default=0, type=int, help='the num of unlabeded case')
     parser.add_argument('--labeled_num', default=120, type=int, help='the num of labeled case')
     parser.add_argument('--times', default=5, type=int)
+    parser.add_argument('--slices', type=int, default=7, help='slices used in the 2.5D mode')
     parser.add_argument('--aug_list_dir', default='./plaque_info.csv', type=str)
     parser.add_argument('--over_sample', action="store_true")
     parser.add_argument('--loss_func', type=str, default='dice', help='Loss function used for training [default: dice]')
@@ -96,11 +97,27 @@ class AugmentDataset(Dataset):
 
     def __getitem__(self, idx):
         pt_idx, env_idx = self.idx_list[idx]
-        probe_img = self.env_dict[env_idx]['img'][pt_idx].astype(np.float)
-        probe_mask = self.env_dict[env_idx]['mask'][pt_idx].astype(np.float)
 
-        probe_img = np.expand_dims(probe_img, axis=-1)
-        probe_mask = np.expand_dims(probe_mask, axis=-1)
+        if self.args.data_mode == '2D':
+            probe_img = self.env_dict[env_idx]['img'][pt_idx].astype(np.float)
+            probe_mask = self.env_dict[env_idx]['mask'][pt_idx].astype(np.float)
+            probe_img = np.expand_dims(probe_img, axis=-1)
+            probe_mask = np.expand_dims(probe_mask, axis=-1)
+        elif self.args.data_mode == '2.5D':
+            img_stack_list = []
+            img_stack_list.append(self.env_dict[env_idx]['img'][pt_idx].astype(np.float))
+            step = int((self.args.slices - 1) / 2)
+            for i in range(step):
+                s_idx = max(pt_idx - sum([i for i in range(i+1)]), 0)
+                e_idx = min(pt_idx + sum([i for i in range(i+1)]), len(self.env_dict[env_idx]['img']) - 1)
+                img_stack_list.insert(0, self.env_dict[env_idx]['img'][s_idx].astype(np.float))
+                img_stack_list.insert(-1, self.env_dict[env_idx]['img'][e_idx].astype(np.float))
+            probe_img = np.stack(img_stack_list, axis=-1)
+            probe_mask = self.env_dict[env_idx]['mask'][pt_idx].astype(np.float)
+            probe_mask = np.expand_dims(probe_mask, axis=-1)
+        else:
+            print(self.args.data_mode + " is not implemented.")
+            raise NotImplementedError
 
         probe_img, probe_mask = center_crop(probe_img, probe_mask, self.args.crop_size)
         probe_mask = probe_mask.astype(np.int32)
@@ -122,7 +139,8 @@ if __name__ == "__main__":
     aug_dataset = AugmentDataset(args, 'label')
     img1 = aug_dataset[14]['img']
     mask1 = aug_dataset[14]['mask']
-    show_two_img(img1, mask1)
+    print(img1.shape)
+    # show_two_img(img1, mask1)
 
     # unlabeled_dir, labeled_dir, val_dir = split_dataset(args)
     # labeled_set = Probe_Dataset(labeled_dir, args)

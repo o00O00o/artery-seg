@@ -48,19 +48,11 @@ def train(args, global_epoch, train_loader, model, optimizer, criterion, writer)
         loss.backward()
         optimizer.step()
 
-        if args.loss_func.startswith('dice'):
-            preds = F.softmax(output, dim=1).data.max(1)[1]
-        elif args.loss_func.startswith('cross_entropy') or args.loss_func.startswith('focal'):
-            preds = F.log_softmax(output, dim=1).data.max(1)[1]
-
+        preds = F.softmax(output, dim=1).data.max(1)[1]
         mask = torch.squeeze(mask, 1)
 
         preds = preds.cpu().numpy()
         mask = mask.cpu().numpy()
-
-        # unique = np.unique(mask).astype(np.int16)
-        # if 2 not in unique and 3 not in unique:
-        #     print("False")
 
         for l in range(args.n_classes):
             total_inter_class_tmp[l] += np.sum((preds == l) & (mask == l))
@@ -112,11 +104,7 @@ def validate(args, global_epoch, val_loader, model, optimizer, criterion, writer
 
             loss = criterion(output, mask, args.n_classes, weights=args.n_weights)
 
-            if args.loss_func.startswith('dice'):
-                preds = F.softmax(output, dim=1).data.max(1)[1]
-            elif args.loss_func.startswith('cross_entropy') or args.loss_func.startswith('focal'):
-                preds = F.log_softmax(output, dim=1).data.max(1)[1]
-            
+            preds = F.softmax(output, dim=1).data.max(1)[1]
             mask = torch.squeeze(mask, 1)
 
             preds = preds.cpu().numpy()
@@ -187,8 +175,8 @@ def train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, mod
             inputs_u2 = torch.clone(inputs_u)
             
             with torch.no_grad():
-                trans_inputs_u2 = transforms_for_noise(inputs_u2)  # noise transform
-                trans_inputs_u2, rot_mask = transforms_for_rot(trans_inputs_u2)  # rotation transform
+                # trans_inputs_u2 = transforms_for_noise(inputs_u2)  # noise transform
+                trans_inputs_u2, rot_mask = transforms_for_rot(inputs_u2)  # rotation transform
                 trans_inputs_u2, flip_mask = transforms_for_flip(trans_inputs_u2)  # flip transform
                 trans_inputs_u2, scale_mask = transforms_for_scale(trans_inputs_u2)  # scale transform
 
@@ -231,10 +219,7 @@ def train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, mod
             writer.add_scalar('losses/train_loss_un', Lu, iter_num)
             writer.add_scalar('losses/consistency_weight', consistency_weight, iter_num)
 
-        if args.loss_func.startswith('dice'):
-            preds = F.softmax(logits_x, dim=1).data.max(1)[1]
-        elif args.loss_func.startswith('cross_entropy'):
-            preds = F.log_softmax(logits_x, dim=1).data.max(1)[1]
+        preds = F.softmax(logits_x, dim=1).data.max(1)[1]
         mask = torch.squeeze(targets_x, 1)
 
         preds = preds.cpu().numpy()

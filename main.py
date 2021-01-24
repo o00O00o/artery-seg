@@ -29,8 +29,8 @@ def parse_args():
     parser.add_argument('--lr_clip', type=float, default=1e-5, help='learning rate clip')
     parser.add_argument('--optimizer', type=str, default='Adam', help='Adam or SGD [default: Adam]')
     parser.add_argument('--loss_func', type=str, default='dice', help='Loss function used for training [default: dice]')
-    parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset_v3', help='folder name for training set')
-    # parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
+    # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset_v3', help='folder name for training set')
+    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
     parser.add_argument('--step_size', type=int, default=50, help='Decay step')
 
     # do not change following flags
@@ -154,8 +154,8 @@ def main(args):
 
         # train --------------------------------------------------------------
         if args.all_label:
-            # train_mean_teacher(args, global_epoch, labeled_loader, labeled_loader, model, ema_model, optimizer, criterion, writer)
-            train(args, global_epoch, labeled_loader, model, optimizer, criterion, writer)
+            train_mean_teacher(args, global_epoch, labeled_loader, labeled_loader, model, ema_model, optimizer, criterion, writer)
+            # train(args, global_epoch, labeled_loader, model, optimizer, criterion, writer)
         else:
             train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, optimizer, criterion, writer)
 
