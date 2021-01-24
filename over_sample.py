@@ -7,7 +7,6 @@ from dataset import Probe_Dataset, split_dataset, normalize, center_crop, adjust
 from torch.utils.data import ConcatDataset, Dataset
 from imgaug.augmentables.segmaps import SegmentationMapsOnImage
 import argparse
-from visualize import visualize_slice, show_two_img
 
 
 def parse_args():
