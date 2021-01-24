@@ -6,7 +6,31 @@ import imgaug.augmenters as iaa
 from dataset import Probe_Dataset, split_dataset, normalize, center_crop, adjust_HU
 from torch.utils.data import ConcatDataset, Dataset
 from imgaug.augmentables.segmaps import SegmentationMapsOnImage
+import argparse
+from visualize import visualize_slice, show_two_img
 
+
+def parse_args():
+    parser = argparse.ArgumentParser('Model')
+    # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/plaques_v2', help='folder name for training set')
+    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
+    parser.add_argument('--crop_size', type=int, default=64, help='size for square patch')
+    parser.add_argument('--case_num', type=int, default=150, help='the num of total case')
+    parser.add_argument('--unlabeled_num', default=0, type=int, help='the num of unlabeded case')
+    parser.add_argument('--labeled_num', default=120, type=int, help='the num of labeled case')
+    parser.add_argument('--times', default=5, type=int)
+    parser.add_argument('--aug_list_dir', default='./plaque_info.csv', type=str)
+    parser.add_argument('--over_sample', action="store_true")
+    parser.add_argument('--loss_func', type=str, default='dice', help='Loss function used for training [default: dice]')
+    parser.add_argument('--batch_size', type=int, default=64, help='Batch Size during training [default: 256]')
+    parser.add_argument('--all_label', action='store_true', help='full supervised configuration if set true')
+    parser.add_argument('--data_mode', type=str, default='2D', help='data mode')
+    parser.add_argument('--dataset_mode', type=str, default='all_branch', help='dataset mode be to used: main_branch or all_branch')
+    parser.add_argument('--n_classes', type=int, default=4, help='classes for segmentation')
+    parser.add_argument('--learning_rate', default=1e-4, type=float, help='Initial learning rate [default: 0.001]')
+    parser.add_argument('--baseline', action='store_true')
+    
+    return parser.parse_args()
 
 def prepare_data(data_paths, query_table, times):
 
@@ -40,10 +64,10 @@ def prepare_data(data_paths, query_table, times):
 
         mask_vol[mask_vol>3] = 0
 
-        for i in range(mask_vol.shape[0]):
-            if i in slice_id:
-                for i in range(times):  # 重复times次，作为复制
-                    all_idx_list.append((i, env_count))
+        for idx in range(mask_vol.shape[0]):
+            if idx in slice_id:
+                for time in range(times):  # 重复times次，作为复制
+                    all_idx_list.append((idx, env_count))
 
         env_dict[env_count] = {'img': mpr_vol, 'mask': mask_vol}
         env_count += 1
@@ -51,8 +75,9 @@ def prepare_data(data_paths, query_table, times):
     return all_idx_list, env_dict
 
 class AugmentDataset(Dataset):
-    def __init__(self, args, type='unlabel'):
+    def __init__(self, args, type='unlabel', augmentation=False):
         self.args = args
+        self.augmentation = augmentation
         df = pd.read_csv(args.aug_list_dir)
 
         if type == 'unlabel':
@@ -74,6 +99,7 @@ class AugmentDataset(Dataset):
         pt_idx, env_idx = self.idx_list[idx]
         probe_img = self.env_dict[env_idx]['img'][pt_idx].astype(np.float)
         probe_mask = self.env_dict[env_idx]['mask'][pt_idx].astype(np.float)
+
         probe_img = np.expand_dims(probe_img, axis=-1)
         probe_mask = np.expand_dims(probe_mask, axis=-1)
 
@@ -81,28 +107,40 @@ class AugmentDataset(Dataset):
         probe_mask = probe_mask.astype(np.int32)
 
         # augmentation
-        seg_map = SegmentationMapsOnImage(probe_mask, shape=probe_img.shape)
-        aug_affine = iaa.Affine(scale=(0.9, 1.1), translate_percent=(-0.05, 0.05), rotate=(-360, 360), shear=(-20, 20), mode='edge')
-        probe_img, seg_map = aug_affine(image=probe_img, segmentation_maps=seg_map)
-        probe_mask = seg_map.get_arr()
-        probe_img = adjust_HU(probe_img, value_range=(-50, 50))
+        if self.augmentation:
+            seg_map = SegmentationMapsOnImage(probe_mask, shape=probe_img.shape)
+            aug_affine = iaa.Affine(scale=(0.9, 1.1), translate_percent=(-0.05, 0.05), rotate=(-360, 360), shear=(-20, 20), mode='edge')
+            probe_img, seg_map = aug_affine(image=probe_img, segmentation_maps=seg_map)
+            probe_mask = seg_map.get_arr()
 
-        probe_img = normalize(probe_img)
         sample = {'img': probe_img, 'mask': probe_mask}
-
         return sample
 
 
-# if __name__ == "__main__":
-    # args = parse_args()
-    # args.aug_list_dir = './plaque_info.csv'
-    # aug_dataset = AugmentDataset(args, 'label')
+if __name__ == "__main__":
+    np.set_printoptions(threshold=np.inf)
+    args = parse_args()
+    aug_dataset = AugmentDataset(args, 'label')
+    img1 = aug_dataset[14]['img']
+    mask1 = aug_dataset[14]['mask']
+    show_two_img(img1, mask1)
+
+    # unlabeled_dir, labeled_dir, val_dir = split_dataset(args)
+    # labeled_set = Probe_Dataset(labeled_dir, args)
+    # img2 = labeled_set[342]['img']
+    # mask2 = labeled_set[342]['mask']
+    # show_two_img(img2, mask2)
+    # img2 = (img2.reshape(64, 64) - 0.3) * 10000
+    # print(img2)
+    # img2 = np.around(img2, 0)
+    # print(img2)
     # for i in range(len(aug_dataset)):
-    #     img = aug_dataset[i]['img']
     #     mask = aug_dataset[i]['mask']
     #     unique = np.unique(mask)
-    #     if 2 in unique or 3 in unique:
-    #         print("Correct")
+    #     if 2 not in unique and 3 not in unique:
+    #         print(i)
+
+
 
     # unlabeled_dir, labeled_dir, val_dir = split_dataset(args)
     # labeled_set = Probe_Dataset(labeled_dir, args)

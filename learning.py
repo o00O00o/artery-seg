@@ -50,7 +50,7 @@ def train(args, global_epoch, train_loader, model, optimizer, criterion, writer)
 
         if args.loss_func.startswith('dice'):
             preds = F.softmax(output, dim=1).data.max(1)[1]
-        elif args.loss_func.startswith('cross_entropy'):
+        elif args.loss_func.startswith('cross_entropy') or args.loss_func.startswith('focal'):
             preds = F.log_softmax(output, dim=1).data.max(1)[1]
 
         mask = torch.squeeze(mask, 1)
@@ -58,11 +58,22 @@ def train(args, global_epoch, train_loader, model, optimizer, criterion, writer)
         preds = preds.cpu().numpy()
         mask = mask.cpu().numpy()
 
+        # unique = np.unique(mask).astype(np.int16)
+        # if 2 not in unique and 3 not in unique:
+        #     print("False")
+
         for l in range(args.n_classes):
             total_inter_class_tmp[l] += np.sum((preds == l) & (mask == l))
-            total_union_class_tmp[l] += np.sum((preds == l) | (preds == l))
+            total_union_class_tmp[l] += np.sum((preds == l) | (mask == l))
             total_inter_class[l] += total_inter_class_tmp[l]
             total_union_class[l] += total_union_class_tmp[l]
+
+        given_class = 3
+        print("inter", total_inter_class_tmp[given_class])
+        print("union", total_union_class_tmp[given_class])
+        soft_plaque_dice = total_inter_class[given_class] * 2 / (total_inter_class[given_class] + total_union_class[given_class])
+        print("dice", soft_plaque_dice)
+    
         loss_sum += loss
         iter_num = global_epoch * num_batches + i
 
@@ -231,7 +242,7 @@ def train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, mod
 
         for l in range(args.n_classes):
             total_inter_class_tmp[l] += np.sum((preds == l) & (mask == l))
-            total_union_class_tmp[l] += np.sum((preds == l) | (preds == l))
+            total_union_class_tmp[l] += np.sum((preds == l) | (mask == l))
             total_inter_class[l] += total_inter_class_tmp[l]
             total_union_class[l] += total_union_class_tmp[l]
 

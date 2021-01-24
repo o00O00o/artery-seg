@@ -54,7 +54,7 @@ def parse_args():
     parser.add_argument('--labeled_num', default=15, type=int, help='the num of labeled case')
     parser.add_argument('--times', default=5, type=int)
     parser.add_argument('--aug_list_dir', default='./plaque_info.csv', type=str)
-    parser.add_argument('--over_sample', default=True, type=bool)
+    parser.add_argument('--over_sample', action="store_true")
     
     return parser.parse_args()
 
@@ -116,9 +116,13 @@ def main(args):
     labeled_set = Probe_Dataset(labeled_dir, args)
     val_set = Probe_Dataset(val_dir, args)
 
+    args.n_weights = torch.tensor(labeled_set.labelweights).float().to(args.device)
+    args.log_string("Weights for classes:{}".format(args.n_weights))
+
     if args.over_sample:
-        unlabeled_set = ConcatDataset([unlabeled_set, AugmentDataset(args, 'unlabel')])
-        labeled_set = ConcatDataset([labeled_set, AugmentDataset(args, 'label')])
+        unlabeled_set = ConcatDataset([AugmentDataset(args, 'unlabel'), unlabeled_set])
+        labeled_set = ConcatDataset([AugmentDataset(args, 'label'), labeled_set])
+        # labeled_set = AugmentDataset(args, 'label')
 
     try:
         labeled_loader = DataLoader(labeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
@@ -150,8 +154,8 @@ def main(args):
 
         # train --------------------------------------------------------------
         if args.all_label:
-            train_mean_teacher(args, global_epoch, labeled_loader, labeled_loader, model, ema_model, optimizer, criterion, writer)
-            #  train(args, global_epoch, labeled_loader, model, optimizer, criterion, writer)
+            # train_mean_teacher(args, global_epoch, labeled_loader, labeled_loader, model, ema_model, optimizer, criterion, writer)
+            train(args, global_epoch, labeled_loader, model, optimizer, criterion, writer)
         else:
             train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, optimizer, criterion, writer)
 
@@ -210,7 +214,7 @@ if __name__ == "__main__":
     args = parse_args()
 
     if args.all_label:
-        args.labeled_num = args.labeled_num + args.unlabeded_num
+        args.labeled_num = args.labeled_num + args.unlabeled_num
         args.unlabeled_num = 0
 
     set_seed(args)

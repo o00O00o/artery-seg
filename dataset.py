@@ -257,7 +257,7 @@ class Probe_Dataset(Dataset):
 
         probe_img, probe_mask = center_crop(probe_img, probe_mask, self.args.crop_size)
         probe_mask = probe_mask.astype(np.int32)
-        probe_img = normalize(probe_img)
+        # probe_img = normalize(probe_img)
         sample = {'img': probe_img, 'mask': probe_mask}
 
         return sample

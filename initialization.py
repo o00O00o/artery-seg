@@ -2,12 +2,12 @@ import os
 import importlib
 import shutil
 import torch
-from losses import CrossEntropy, DiceLossMulticlass_CW
+from losses import CrossEntropy, DiceLossMulticlass_CW, FocalLoss, FocalLoss_Pixel
 from tensorboardX import SummaryWriter
 
 def initialization(args):
     MODEL = importlib.import_module(args.model)
-    shutil.copy('%s.py' % args.model, str(args.experiment_dir))
+    # shutil.copy('%s.py' % args.model, str(args.experiment_dir))
 
     # decide the input channel of the network according to the data_mode
     if args.data_mode == '2D':
@@ -54,6 +54,8 @@ def initialization(args):
         criterion = DiceLossMulticlass_CW()
     elif args.loss_func == 'cross_entropy':
         criterion = CrossEntropy()
+    elif args.loss_func == 'focal_loss':
+        criterion = FocalLoss_Pixel()
     else:
         print('unknown loss function:{}'.format(args.loss_func))
 

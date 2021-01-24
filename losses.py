@@ -45,6 +45,53 @@ class CrossEntropy(nn.Module):
         wce = F.cross_entropy(output, target.long(), weight=weights)
         return wce
 
+class FocalLoss(nn.Module):
+
+    def __init__(self, focusing_param=2, balanced_param=1):
+        super(FocalLoss, self).__init__()
+
+        self.focusing_param = focusing_param
+        self.balanced_param = balanced_param
+
+    def forward(self, output, target, n_classes, weights, softmaxed=False):
+
+        if not softmaxed:
+            output = F.log_softmax(output, 1)
+        
+        target = torch.squeeze(target, 1)
+        logpt = -F.nll_loss(output, target.long(), weights)
+        pt = torch.exp(logpt)
+
+        focal_loss = -((1 - pt) ** self.focusing_param) * logpt
+
+        return self.balanced_param * focal_loss
+
+
+class FocalLoss_Pixel(nn.Module):
+
+    def __init__(self, focusing_param=2, balanced_param=1):
+        super(FocalLoss_Pixel, self).__init__()
+
+        self.focusing_param = focusing_param
+        self.balanced_param = balanced_param
+
+    def forward(self, output, target, n_classes, weights, softmaxed=False):
+
+        if not softmaxed:
+            output = F.log_softmax(output, 1)
+
+        target = torch.squeeze(target, 1).long()
+
+        logpt = -F.nll_loss(output, target, weights, reduction='none').view(-1)
+        pt = torch.exp(logpt)
+
+        focal_loss = -((1 - pt) ** self.focusing_param) * logpt
+
+        w = weights.index_select(0, target.view(-1)).sum()
+
+        wf = focal_loss.sum() / w
+
+        return self.balanced_param * wf
 
 def softmax_mse_loss(input_logits, target_logits):
     assert input_logits.size() == target_logits.size()
