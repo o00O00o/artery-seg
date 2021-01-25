@@ -60,12 +60,6 @@ def train(args, global_epoch, train_loader, model, optimizer, criterion, writer)
             total_inter_class[l] += total_inter_class_tmp[l]
             total_union_class[l] += total_union_class_tmp[l]
 
-       # given_class = 3
-       # print("inter", total_inter_class_tmp[given_class])
-       # print("union", total_union_class_tmp[given_class])
-       # soft_plaque_dice = total_inter_class[given_class] * 2 / (total_inter_class[given_class] + total_union_class[given_class])
-       # print("dice", soft_plaque_dice)
-    
         loss_sum += loss
         iter_num = global_epoch * num_batches + i
 

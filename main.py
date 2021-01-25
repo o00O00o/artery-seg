@@ -7,7 +7,7 @@ from pathlib import Path
 from dataset import split_dataset, Probe_Dataset, count_dataset, record_dataset
 from torch.utils.data import DataLoader, ConcatDataset
 from initialization import initialization
-from learning import validate, train_mean_teacher, train
+from learning import validate, train_mean_teacher
 from over_sample import AugmentDataset
 
 
@@ -155,7 +155,6 @@ def main(args):
         # train --------------------------------------------------------------
         if args.all_label:
             train_mean_teacher(args, global_epoch, labeled_loader, labeled_loader, model, ema_model, optimizer, criterion, writer)
-            # train(args, global_epoch, labeled_loader, model, optimizer, criterion, writer)
         else:
             train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, optimizer, criterion, writer)
 
