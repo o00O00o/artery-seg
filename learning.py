@@ -88,7 +88,6 @@ def validate(args, global_epoch, val_loader, model, optimizer, criterion, writer
         loss_sum = 0
         total_inter_class = [0 for _ in range(args.n_classes)]
         total_union_class = [0 for _ in range(args.n_classes)]
-        num_batches = len(val_loader)
 
         for i, data in tqdm(enumerate(val_loader), total=len(val_loader), smoothing=0.9):
             total_inter_class_tmp = [0 for _ in range(args.n_classes)]
@@ -103,6 +102,7 @@ def validate(args, global_epoch, val_loader, model, optimizer, criterion, writer
             mask = mask.contiguous().view(mask.size(0), 1, -1)  # (batch_size, 1, 96 * 96)
 
             loss = criterion(output, mask, args.n_classes, weights=args.n_weights)
+            loss_sum += loss
 
             preds = F.softmax(output, dim=1).data.max(1)[1]
             mask = torch.squeeze(mask, 1)
@@ -115,21 +115,23 @@ def validate(args, global_epoch, val_loader, model, optimizer, criterion, writer
                 total_union_class_tmp[l] += np.sum((preds == l) | (mask == l))
                 total_inter_class[l] += total_inter_class_tmp[l]
                 total_union_class[l] += total_union_class_tmp[l]
-            loss_sum += loss
 
-        loss_sum /= num_batches
+        mean_loss = loss_sum / len(val_loader)
         dice_classes = (np.array(total_inter_class) * 2) / (np.array(total_inter_class) + np.array(total_union_class))
         dice_classes = np.around(dice_classes, 4)
         mean_dice = np.mean(dice_classes)
-       
-        if is_ema:
-            writer.add_scalar('losses/ema_val_loss', loss_sum, global_epoch)
-            writer.add_scalar('dice/ema_val_mean_dice', mean_dice, global_epoch)
-        else:
-            writer.add_scalar('losses/val_loss', loss_sum, global_epoch)
-            writer.add_scalar('dice/val_mean_dice', mean_dice, global_epoch)
 
-    return (mean_dice, dice_classes)
+        if is_ema:
+            loss_name = 'losses/ema_val_loss'
+            dice_name = 'losses/ema_val_dice'
+        else:
+            loss_name = 'loss/val_loss'
+            dice_name = 'dice/val_dice'
+
+        writer.add_scalar(loss_name, mean_loss, global_epoch)
+        writer.add_scalar(dice_name, mean_dice, global_epoch)
+
+    return (mean_dice, dice_classes, mean_loss)
 
 def train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, optimizer, criterion, writer):
 

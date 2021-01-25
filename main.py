@@ -173,16 +173,27 @@ def main(args):
             
             torch.save(state, savepath)
 
-        # validate ------------------------------------------------------------
+        # validate student model ------------------------------------------------------------
         val_result = validate(args, global_epoch, val_loader, model, optimizer, criterion, writer, is_ema=False)
-
-        if not args.baseline:
-            ema_val_result = validate(args, global_epoch, val_loader, ema_model, optimizer, criterion, writer, is_ema=True)
-            if ema_val_result[0] > val_result[0]:
-                val_result = ema_val_result
-        
+        args.log_string('Student model result -----------------------------------------------')
+        args.log_string('Val mean loss %s:' % (val_result[2]))
         args.log_string('Val class dice %s:' % (val_result[1]))
         args.log_string('Val mean dice %s:' % (val_result[0]))
+        
+        # validate teacher model ------------------------------------------------------------
+        if not args.baseline:
+            ema_val_result = validate(args, global_epoch, val_loader, ema_model, optimizer, criterion, writer, is_ema=True)
+            args.log_string('Teacher model result -----------------------------------------------')
+            args.log_string('Ema val mean loss %s:' % (ema_val_result[2]))
+            args.log_string('Ema val class dice %s:' % (ema_val_result[1]))
+            args.log_string('Ema val mean dice %s:' % (ema_val_result[0]))
+            
+            if ema_val_result[0] > val_result[0]:
+                val_result = ema_val_result
+
+            args.log_string('Epoch result -----------------------------------------------')
+            args.log_string('Epoch class dice %s:' % (val_result[1]))
+            args.log_string('Epoch mean dice %s:' % (val_result[0]))
 
         if val_result[0] > best_dice:
             best_dice = val_result[0]
@@ -202,6 +213,7 @@ def main(args):
             
             torch.save(state, savepath)
 
+        args.log_string('Current best result -----------------------------------------------')
         args.log_string('Best Epoch, Dice and Result: %d, %f, %s' %(best_epoch, best_dice, best_metric))
         
         global_epoch += 1
