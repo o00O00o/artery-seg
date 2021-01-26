@@ -96,7 +96,7 @@ def validate(args, global_epoch, val_loader, model, optimizer, criterion, writer
             mask = mask.contiguous().view(mask.size(0), 1, -1)  # (batch_size, 1, 96 * 96)
 
             loss = criterion(output, mask, args.n_classes, weights=args.n_weights)
-            loss_sum += loss
+            loss_sum += loss.item()
 
             preds = F.softmax(output, dim=1).data.max(1)[1]
             mask = torch.squeeze(mask, 1)
