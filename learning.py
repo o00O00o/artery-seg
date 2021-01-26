@@ -127,7 +127,7 @@ def validate(args, global_epoch, val_loader, model, optimizer, criterion, writer
 
     return (mean_dice, dice_classes, mean_loss)
 
-def train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, optimizer, criterion, writer):
+def train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, stu_model, ema_model, optimizer, criterion, writer):
 
     total_inter_class = [0 for _ in range(args.n_classes)]
     total_union_class = [0 for _ in range(args.n_classes)]
@@ -166,26 +166,26 @@ def train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, mod
                 unlabeled_train_iter = iter(unlabeled_loader)
                 data = unlabeled_train_iter.next()
             
-            inputs_u = data['img']
-            inputs_u = inputs_u.permute(0, 3, 1, 2).to(args.device).float()  # (12, 1, 96, 96)
-            inputs_u2 = torch.clone(inputs_u)
+            inputs_stu = data['img']
+            inputs_stu = inputs_u.permute(0, 3, 1, 2).to(args.device).float()  # (12, 1, 96, 96)
+            inputs_ema = torch.clone(inputs_u)
             
             with torch.no_grad():
                 # trans_inputs_u2 = transforms_for_noise(inputs_u2)  # noise transform
-                trans_inputs_u2, rot_mask = transforms_for_rot(inputs_u2)  # rotation transform
-                trans_inputs_u2, flip_mask = transforms_for_flip(trans_inputs_u2)  # flip transform
-                trans_inputs_u2, scale_mask = transforms_for_scale(trans_inputs_u2)  # scale transform
+                trans_inputs_ema, rot_mask = transforms_for_rot(inputs_ema)  # rotation transform
+                trans_inputs_ema, flip_mask = transforms_for_flip(trans_inputs_ema)  # flip transform
+                trans_inputs_ema, scale_mask = transforms_for_scale(trans_inputs_ema)  # scale transform
 
-                outputs_u = ema_model(inputs_u)
-                outputs_u_ema = model(trans_inputs_u2)
+                outputs_ema = ema_model(trans_inputs_ema)
+                outputs_stu = stu_model(inputs_stu)
 
-                outputs_u_ema = transforms_back_scale(outputs_u_ema, scale_mask)
-                outputs_u_ema = transforms_back_flip(outputs_u_ema, flip_mask)
-                outputs_u_ema = transforms_back_rot(outputs_u_ema, rot_mask)
+                trans_outputs_stu = transforms_back_scale(outputs_stu, scale_mask)
+                trans_outputs_stu = transforms_back_flip(trans_outputs_stu, flip_mask)
+                trans_outputs_stu = transforms_back_rot(trans_outputs_stu, rot_mask)
         
         iter_num = batch_idx + global_epoch * num_iteration_per_epoch
 
-        logits_x = model(inputs_x)
+        logits_x = stu_model(inputs_x)
         logits_x = logits_x.contiguous().view(logits_x.size(0), args.n_classes, -1)  # (batch_size, 4, 96 * 96)
         targets_x = targets_x.contiguous().view(targets_x.size(0), 1, -1)  # (batch_size, 1, 96 * 96)
 
@@ -193,11 +193,8 @@ def train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, mod
 
         if not args.baseline:
             consistency_weight = get_current_consistency_weight(args, global_epoch)
-            consistency_dist = softmax_mse_loss(outputs_u, outputs_u_ema)
-            consistency_dist = torch.mean(consistency_dist)
-
+            consistency_dist = softmax_mse_loss(outputs_ema, trans_outputs_stu).mean()
             Lu = consistency_weight * consistency_dist
-
             loss = Lx + Lu
         else:
             loss = Lx
