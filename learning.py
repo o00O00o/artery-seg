@@ -140,7 +140,8 @@ def train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, stu
     else:
         num_iteration_per_epoch = labeled_num_batches
 
-    model.train()
+    stu_model.train()
+    ema_model.train()
 
     for batch_idx in tqdm(range(num_iteration_per_epoch)):
 
@@ -167,8 +168,8 @@ def train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, stu
                 data = unlabeled_train_iter.next()
             
             inputs_stu = data['img']
-            inputs_stu = inputs_u.permute(0, 3, 1, 2).to(args.device).float()  # (12, 1, 96, 96)
-            inputs_ema = torch.clone(inputs_u)
+            inputs_stu = inputs_stu.permute(0, 3, 1, 2).to(args.device).float()  # (12, 1, 96, 96)
+            inputs_ema = torch.clone(inputs_stu)
             
             with torch.no_grad():
                 # trans_inputs_u2 = transforms_for_noise(inputs_u2)  # noise transform
@@ -204,7 +205,7 @@ def train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, stu
         optimizer.step()
 
         if not args.baseline:
-            update_ema_variables(model, ema_model, args.ema_decay, iter_num)
+            update_ema_variables(stu_model, ema_model, args.ema_decay, iter_num)
         
         writer.add_scalar('losses/train_loss', loss, iter_num)
         writer.add_scalar('losses/train_loss_supervised', Lx, iter_num)
