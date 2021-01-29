@@ -1,12 +1,14 @@
 import os
+import argparse
 import numpy as np
 import pandas as pd
 import SimpleITK as sitk
 import imgaug.augmenters as iaa
-from dataset import Probe_Dataset, split_dataset, normalize, center_crop, adjust_HU
-from torch.utils.data import ConcatDataset, Dataset
+from torch.utils.data import Dataset
+from dataset import center_crop
 from imgaug.augmentables.segmaps import SegmentationMapsOnImage
-import argparse
+# from dataset import Probe_Dataset, split_dataset, normalize, center_crop, adjust_HU
+# from torch.utils.data import ConcatDataset, Dataset
 
 
 def parse_args():
@@ -156,8 +158,6 @@ if __name__ == "__main__":
     #     unique = np.unique(mask)
     #     if 2 not in unique and 3 not in unique:
     #         print(i)
-
-
 
     # unlabeled_dir, labeled_dir, val_dir = split_dataset(args)
     # labeled_set = Probe_Dataset(labeled_dir, args)

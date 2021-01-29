@@ -28,7 +28,7 @@ def initialization(args):
             torch.nn.init.constant_(m.bias.data)
 
     if args.resume:
-        checkpoint = torch.load(str(args.checkpoints_dir) + '/model.pth')
+        checkpoint = torch.load(str(args.log_dir) + '/model.pth')
         start_epoch = checkpoint['epoch']
         model.load_state_dict(checkpoint['model_state_dict'])
         if not args.baseline:
@@ -36,8 +36,8 @@ def initialization(args):
         args.log_string('Use pretrain model')
     else:
         args.log_string('No existing model, starting training from scratch...')
-        # model = model.apply(weights_init)
-        # ema_model = ema_model.apply(weights_init)
+        model = model.apply(weights_init)
+        ema_model = ema_model.apply(weights_init)
         start_epoch = 0
 
     # optimizer initialization -----------------------------------------
@@ -57,6 +57,6 @@ def initialization(args):
         print('unknown loss function:{}'.format(args.loss_func))
 
     # writer initializtion ---------------------------------------------
-    writer = SummaryWriter(os.path.join(args.log_dir, 'runs'))
+    writer = SummaryWriter(os.path.join(args.log_dir, args.experiment_name))
 
     return model, ema_model, optimizer, criterion, start_epoch, writer

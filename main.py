@@ -4,15 +4,17 @@ import logging
 import numpy as np
 import argparse
 from pathlib import Path
-from dataset import split_dataset, Probe_Dataset, count_dataset, record_dataset
+from dataset import split_dataset, Probe_Dataset
 from torch.utils.data import DataLoader, ConcatDataset
 from initialization import initialization
 from learning import validate, train_mean_teacher
 from over_sample import AugmentDataset
+# from dataset import count_dataset, record_dataset
 
 
 def parse_args():
     parser = argparse.ArgumentParser('Model')
+    parser.add_argument('--experiment_name', type=str, default='experiment', help='unique name for each experiment')
     parser.add_argument('--model', type=str, default='Vnet', help='model architecture: Vnet, cosnet')
     parser.add_argument('--data_mode', type=str, default='2.5D', help='data mode')
     parser.add_argument('--dataset_mode', type=str, default='all_branch', help='dataset mode be to used: main_branch or all_branch')
@@ -28,34 +30,35 @@ def parse_args():
     parser.add_argument('--lr_decay', type=float, default=0.8, help='Decay rate for lr decay [default: 0.7]')
     parser.add_argument('--lr_clip', type=float, default=1e-4, help='learning rate clip')
     parser.add_argument('--optimizer', type=str, default='Adam', help='Adam or SGD [default: Adam]')
-    parser.add_argument('--loss_func', type=str, default='cross_entropy', help='Loss function used for training [default: dice]')
-    # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset_v3', help='folder name for training set')
-    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
+    parser.add_argument('--loss_func', type=str, default='focal_loss', help='Loss function used for training [default: dice]')
     parser.add_argument('--step_size', type=int, default=50, help='Decay step')
 
     # do not change following flags
     parser.add_argument('--n_weights', type=int, default=None, help='Weights for classes of segmentation or classification')
     parser.add_argument('--resume', action="store_true", help='whether to resume from the checkpoint')
-    parser.add_argument('--experiment_dir', type=str, default=None, help='Experiment path [default: None]')
-    parser.add_argument('--checkpoints_dir', type=str, default=None, help='Experiment path [default: None]')
-    parser.add_argument('--logger', default=None, help='logger')
     parser.add_argument('--log_string', type=str, default=None, help='log string wrapper [default: None]')
     parser.add_argument('--device', type=str, default=None, help='set device type')
-    parser.add_argument('--log_dir', type=str, default=None, help='Log path [default: None]')
 
-    # mean-teacher configurations
+    # path configurations
+    parser.add_argument('--log_dir', type=str, default=None, help='Log path [default: None]')
+    parser.add_argument('--aug_list_dir', default='./plaque_info.csv', type=str)
+    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
+    # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset_v3', help='folder name for training set')
+
+    # mean-teacher learning configurations
     parser.add_argument('--baseline', action='store_true')
     parser.add_argument('--consistency-type', type=str, default='mse', help='select the type of consistency criterion')
     parser.add_argument('--consistency', type=float, default=10.0)
     parser.add_argument('--consistency_rampup', type=float, default=600.0)
     parser.add_argument('--ema-decay', type=float, default=0.999)
-    parser.add_argument('--all_label', action='store_true', help='full supervised configuration if set true')
+
+    # mean-teacher data configurations
     parser.add_argument('--case_num', type=int, default=150, help='the num of total case')
     parser.add_argument('--unlabeled_num', default=75, type=int, help='the num of unlabeded case')
     parser.add_argument('--labeled_num', default=50, type=int, help='the num of labeled case')
-    parser.add_argument('--times', default=5, type=int)
-    parser.add_argument('--aug_list_dir', default='./plaque_info.csv', type=str)
+    parser.add_argument('--all_label', action='store_true', help='full supervised configuration if set true')
     parser.add_argument('--over_sample', action="store_true")
+    parser.add_argument('--times', default=5, type=int)
     
     return parser.parse_args()
 
@@ -71,19 +74,8 @@ def make_dir_log(args):
     # setup experimental logs dir ---------------------------------------
     experiment_dir = Path('./log/')
     experiment_dir.mkdir(exist_ok=True)
-
-    if args.log_dir is None:
-        args.log_dir = 'labeled-' + str(args.labeled_num) + '-unlabeled-' + str(args.unlabeled_num) + '-weight-' + str(args.consistency) + ('-basline' if args.baseline else '')
-        experiment_dir = experiment_dir.joinpath(args.log_dir)
-
-    experiment_dir.mkdir(exist_ok=True)
-    checkpoints_dir = experiment_dir.joinpath('checkpoints/')
-    checkpoints_dir.mkdir(exist_ok=True)
-    log_dir = experiment_dir.joinpath('logs/')
+    log_dir = experiment_dir.joinpath(args.experiment_name)
     log_dir.mkdir(exist_ok=True)
-
-    args.experiment_dir = experiment_dir
-    args.checkpoints_dir = checkpoints_dir
     args.log_dir = log_dir
 
     # set logs format, file writing and level -----------------------------------
@@ -95,12 +87,11 @@ def make_dir_log(args):
     logger = logging.getLogger("Model")
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    file_handler = logging.FileHandler('%s/%s.txt' % (log_dir, args.model))
+    file_handler = logging.FileHandler('%s/%s.txt' % (args.log_dir, args.experiment_name))
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
     log_string(args)
-    args.logger = logger
 
 def main(args):
     # set device used -----------------------------------------------
@@ -160,7 +151,7 @@ def main(args):
             train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, optimizer, criterion, writer)
 
         if epoch % 5 == 0:
-            savepath = str(args.checkpoints_dir) + '/model.pth'
+            savepath = str(args.log_dir) + '/model.pth'
             args.log_string('Saving at %s' %savepath)
             state = {
                 'epoch': epoch,
@@ -200,7 +191,7 @@ def main(args):
             best_metric = val_result[1]
             best_epoch = epoch
 
-            savepath = str(args.checkpoints_dir) + '/best_model.pth'
+            savepath = str(args.log_dir) + '/best_model.pth'
             args.log_string('Saving at %s' % savepath)
             state = {
                 'epoch': epoch,
@@ -232,11 +223,6 @@ if __name__ == "__main__":
     set_seed(args)
     make_dir_log(args)
     best_mean_dice, best_class_dice = main(args)
-
-    handlers = args.logger.handlers[:]
-    for handler in handlers:
-        handler.close()
-        args.logger.removeHandler(handler)
 
     args.log_string('Final result -----------------------------------------')
     args.log_string('Best mean dice: {}'.format(best_mean_dice))
