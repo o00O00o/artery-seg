@@ -47,24 +47,25 @@ class CrossEntropy(nn.Module):
 
 class FocalLoss(nn.Module):
 
-    def __init__(self, focusing_param=2, balanced_param=1):
+    def __init__(self, focusing_param=2):
         super(FocalLoss, self).__init__()
 
         self.focusing_param = focusing_param
-        self.balanced_param = balanced_param
 
-    def forward(self, output, target, n_classes, weights, softmaxed=False):
+    def forward(self, output, target, n_classes, weights=None):
 
-        if not softmaxed:
-            output = F.log_softmax(output, 1)
-        
         target = torch.squeeze(target, 1)
-        logpt = -F.nll_loss(output, target.long(), weights)
+        output = F.log_softmax(output, 1)
+        logpt = -F.nll_loss(output, target.long())
         pt = torch.exp(logpt)
 
-        focal_loss = -((1 - pt) ** self.focusing_param) * logpt
+        if weights is not None:
+            weighted_logpt = -F.nll_loss(output, target.long(), weights)
+            focal_loss = -((1 - pt) ** self.focusing_param) * weighted_logpt
+        else:
+            focal_loss = -((1 - pt) ** self.focusing_param) * logpt
 
-        return self.balanced_param * focal_loss
+        return focal_loss
 
 
 class FocalLoss_Pixel(nn.Module):

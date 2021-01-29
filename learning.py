@@ -63,7 +63,7 @@ def train(args, global_epoch, train_loader, model, optimizer, criterion, writer)
         loss_sum += loss
         iter_num = global_epoch * num_batches + i
 
-        writer.add_scalar('losses/train_loss', loss, iter_num)
+        writer.add_scalar('loss/train_loss', loss, iter_num)
 
     loss_sum /= num_batches
     dice_classes = (np.array(total_inter_class) * 2) / (np.array(total_inter_class) + np.array(total_union_class))
@@ -116,8 +116,8 @@ def validate(args, global_epoch, val_loader, model, optimizer, criterion, writer
         mean_dice = np.mean(dice_classes)
 
         if is_ema:
-            loss_name = 'losses/ema_val_loss'
-            dice_name = 'losses/ema_val_dice'
+            loss_name = 'loss/ema_val_loss'
+            dice_name = 'dice/ema_val_dice'
         else:
             loss_name = 'loss/val_loss'
             dice_name = 'dice/val_dice'
@@ -207,11 +207,11 @@ def train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, stu
         if not args.baseline:
             update_ema_variables(stu_model, ema_model, args.ema_decay, iter_num)
         
-        writer.add_scalar('losses/train_loss', loss, iter_num)
-        writer.add_scalar('losses/train_loss_supervised', Lx, iter_num)
+        writer.add_scalar('loss/train_loss', loss, iter_num)
+        writer.add_scalar('loss/train_loss_supervised', Lx, iter_num)
         if not args.baseline:
-            writer.add_scalar('losses/train_loss_un', Lu, iter_num)
-            writer.add_scalar('losses/consistency_weight', consistency_weight, iter_num)
+            writer.add_scalar('loss/train_loss_un', Lu, iter_num)
+            writer.add_scalar('misc/consistency_weight', consistency_weight, iter_num)
 
         preds = F.softmax(logits_x, dim=1).data.max(1)[1]
         mask = torch.squeeze(targets_x, 1)

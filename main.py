@@ -147,7 +147,7 @@ def main(args):
 
         # adjust hyper parameters ---------------------------------------------------------
         lr = max(args.learning_rate * (args.lr_decay ** (epoch // args.step_size)), args.lr_clip)
-        writer.add_scalar('config/lr', lr, epoch)
+        writer.add_scalar('misc/lr', lr, epoch)
         args.log_string('Learning rate:%f' % lr)
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr

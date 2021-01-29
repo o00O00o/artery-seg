@@ -193,7 +193,7 @@ def prepare_data(data_paths, n_classes):
         env_count += 1
 
     labelweights = labelweights / np.sum(labelweights)
-    labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 1.0)
+    labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 3.0)
 
     return all_idx_list, env_dict, labelweights
 
