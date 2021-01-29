@@ -35,6 +35,7 @@ def parse_args():
 
     # do not change following flags
     parser.add_argument('--n_weights', type=int, default=None, help='Weights for classes of segmentation or classification')
+    parser.add_argument('--resume', action="store_true", help='whether to resume from the checkpoint')
     parser.add_argument('--experiment_dir', type=str, default=None, help='Experiment path [default: None]')
     parser.add_argument('--checkpoints_dir', type=str, default=None, help='Experiment path [default: None]')
     parser.add_argument('--logger', default=None, help='logger')

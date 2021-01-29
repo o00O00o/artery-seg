@@ -1,7 +1,7 @@
 import os
 import importlib
 import torch
-from losses import CrossEntropy, DiceLossMulticlass_CW, FocalLoss, FocalLoss_Pixel
+from losses import CrossEntropy, DiceLossMulticlass_CW, FocalLoss
 from tensorboardX import SummaryWriter
 
 def initialization(args):
@@ -26,16 +26,15 @@ def initialization(args):
         elif classname.find('Linear') != -1:
             torch.nn.init.xavier_normal_(m.weight.data)
             torch.nn.init.constant_(m.bias.data)
-    print(str(args.checkpoints_dir) + '/best_model.pth')
 
-    try:
+    if args.resume:
         checkpoint = torch.load(str(args.checkpoints_dir) + '/model.pth')
         start_epoch = checkpoint['epoch']
         model.load_state_dict(checkpoint['model_state_dict'])
         if not args.baseline:
             ema_model.load_state_dict(checkpoint['ema_model_state_dict'])
         args.log_string('Use pretrain model')
-    except:
+    else:
         args.log_string('No existing model, starting training from scratch...')
         # model = model.apply(weights_init)
         # ema_model = ema_model.apply(weights_init)
@@ -53,7 +52,7 @@ def initialization(args):
     elif args.loss_func == 'cross_entropy':
         criterion = CrossEntropy()
     elif args.loss_func == 'focal_loss':
-        criterion = FocalLoss_Pixel()
+        criterion = FocalLoss()
     else:
         print('unknown loss function:{}'.format(args.loss_func))
 
