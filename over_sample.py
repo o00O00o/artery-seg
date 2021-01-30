@@ -3,6 +3,7 @@ import argparse
 import numpy as np
 import pandas as pd
 import SimpleITK as sitk
+import imgaug as ia
 import imgaug.augmenters as iaa
 from torch.utils.data import Dataset
 from dataset import center_crop
@@ -98,6 +99,7 @@ class AugmentDataset(Dataset):
         return len(self.idx_list)
 
     def __getitem__(self, idx):
+        ia.seed(idx)
         pt_idx, env_idx = self.idx_list[idx]
 
         if self.args.data_mode == '2D':
