@@ -23,7 +23,7 @@ def parse_args():
     parser.add_argument('--seed', type=int, default=4, help='set seed point')
     parser.add_argument('--crop_size', type=int, default=64, help='size for square patch')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch Size during training [default: 256]')
-    parser.add_argument('--epoch', default=800, type=int, help='Epoch to run [default: 300]')
+    parser.add_argument('--epoch', default=400, type=int, help='Epoch to run [default: 300]')
     parser.add_argument('--num_workers', default=4, type=int, help='num workers')
     parser.add_argument('--learning_rate', default=1e-3, type=float, help='Initial learning rate [default: 0.001]')
     parser.add_argument('--decay_rate', type=float, default=1e-4, help='weight decay [default: 1e-4]')
@@ -49,7 +49,7 @@ def parse_args():
     parser.add_argument('--baseline', action='store_true')
     parser.add_argument('--consistency-type', type=str, default='mse', help='select the type of consistency criterion')
     parser.add_argument('--consistency', type=float, default=10.0)
-    parser.add_argument('--consistency_rampup', type=float, default=600.0)
+    parser.add_argument('--consistency_rampup', type=float, default=200.0)
     parser.add_argument('--ema-decay', type=float, default=0.999)
 
     # mean-teacher data configurations
