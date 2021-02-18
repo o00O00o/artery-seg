@@ -52,7 +52,7 @@ def initialization(args):
     elif args.loss_func == 'cross_entropy':
         criterion = CrossEntropy()
     elif args.loss_func == 'focal_loss':
-        criterion = FocalLoss()
+        criterion = FocalLoss(args.ignore_index)
     else:
         print('unknown loss function:{}'.format(args.loss_func))
 

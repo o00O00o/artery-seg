@@ -99,7 +99,7 @@ class AugmentDataset(Dataset):
         return len(self.idx_list)
 
     def __getitem__(self, idx):
-        ia.seed(idx)
+        ia.seed(idx + 1)
         pt_idx, env_idx = self.idx_list[idx]
 
         if self.args.data_mode == '2D':

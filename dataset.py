@@ -150,7 +150,7 @@ def prepare_data(data_paths, n_classes):
     all_idx_list = []
     env_dict = {}
     env_count = 0
-    labelweights = np.ones(n_classes).astype(np.long)
+    labelweights = np.ones(4).astype(np.long)
 
     for file_path in data_paths:
 
@@ -173,14 +173,12 @@ def prepare_data(data_paths, n_classes):
         assert mpr_vol.shape == mask_vol.shape, print('Wrong shape')
 
         # remove anchor voxels
-        mask_vol[mask_vol>5] = 0
+        mask_vol[mask_vol>3] = 0
 
-        if n_classes == 4:
-            mask_vol[mask_vol==4]=0
-        elif n_classes == 3:
-            mask_vol[mask_vol==4]=2
-        else:
-            pass
+        # change label index: artery, hard, soft, background
+        mask_vol = mask_vol.astype(np.int16)
+        mask_vol = mask_vol - 1
+        mask_vol[mask_vol == -1] = 3
 
         unique, counts = np.unique(mask_vol, return_counts=True)
         labelweights[unique] += counts
@@ -191,6 +189,9 @@ def prepare_data(data_paths, n_classes):
 
         env_dict[env_count] = {'img': mpr_vol, 'mask': mask_vol}
         env_count += 1
+
+    if n_classes == 3:  # if n_class is 3, remove the backgroud labelweight
+        labelweights = labelweights[:-1]
 
     labelweights = labelweights / np.sum(labelweights)
     labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 3.0)

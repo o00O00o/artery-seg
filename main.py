@@ -19,7 +19,7 @@ def parse_args():
     parser.add_argument('--data_mode', type=str, default='2.5D', help='data mode')
     parser.add_argument('--dataset_mode', type=str, default='all_branch', help='dataset mode be to used: main_branch or all_branch')
     parser.add_argument('--slices', type=int, default=7, help='slices used in the 2.5D mode')
-    parser.add_argument('--n_classes', type=int, default=4, help='classes for segmentation')
+    parser.add_argument('--n_classes', type=int, default=3, help='classes for segmentation')
     parser.add_argument('--seed', type=int, default=4, help='set seed point')
     parser.add_argument('--crop_size', type=int, default=64, help='size for square patch')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch Size during training [default: 256]')
@@ -32,6 +32,7 @@ def parse_args():
     parser.add_argument('--optimizer', type=str, default='Adam', help='Adam or SGD [default: Adam]')
     parser.add_argument('--loss_func', type=str, default='focal_loss', help='Loss function used for training [default: dice]')
     parser.add_argument('--step_size', type=int, default=50, help='Decay step')
+    parser.add_argument('--ignore_index', type=int, default=3, help="ignore the given label index [default: 3(backgroud)]")
 
     # do not change following flags
     parser.add_argument('--n_weights', type=int, default=None, help='Weights for classes of segmentation or classification')
