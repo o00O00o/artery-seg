@@ -50,7 +50,7 @@ def parse_args():
     # mean-teacher learning configurations
     parser.add_argument('--baseline', action='store_true')
     parser.add_argument('--consistency-type', type=str, default='mse', help='select the type of consistency criterion')
-    parser.add_argument('--consistency', type=float, default=10.0)
+    parser.add_argument('--consistency', type=float, default=2.0)
     parser.add_argument('--consistency_rampup', type=float, default=200.0)
     parser.add_argument('--ema-decay', type=float, default=0.999)
 
