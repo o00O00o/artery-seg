@@ -3,6 +3,31 @@ import pandas as pd
 import SimpleITK as sitk
 import numpy as np
 
+
+def mask2onehot(mask, stage):
+
+    if stage == 'coarse':
+        cat_index = [0, 1]
+    elif stage == 'fine':
+        cat_index = [2, 3]
+    else:
+        raise NotImplementedError
+
+    _mask = [mask == i for i in cat_index]
+    _mask = np.array(_mask).astype(np.uint8)
+    return _mask
+
+
+def dice_coef(output, target):
+    assert output.shape == target.shape, print("Shape of output and target should be the same.")
+    N, C, H, W = target.shape
+    output, target = output.reshape(N, C, H*W), target.reshape(N, C, H*W)
+    intersection = (output * target).sum(axis=0)
+    cat_dice = ((2. * intersection) / (output.sum(axis=0) + target.sum(axis=0) + 1e-7)).mean(axis=1)
+    dice = np.round(cat_dice.mean().item(), 4)
+    return dice, cat_dice
+
+
 def record_dataset(args):
     target_paths = [os.path.join(args.data_dir, str(i)) for i in range(150)]
 

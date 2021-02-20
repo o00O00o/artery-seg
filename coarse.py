@@ -7,7 +7,7 @@ from pathlib import Path
 from dataset import split_dataset, Probe_Dataset
 from torch.utils.data import DataLoader, ConcatDataset
 from initialization import initialization
-from learning import validate, train_mean_teacher
+from learning import coarse_train, coarse_validate
 from over_sample import AugmentDataset
 # from utils import count_dataset, record_dataset
 
@@ -148,9 +148,9 @@ def main(args):
 
         # train --------------------------------------------------------------
         if args.all_label:
-            train_mean_teacher(args, global_epoch, labeled_loader, labeled_loader, model, ema_model, optimizer, criterion, writer)
+            coarse_train(args, global_epoch, labeled_loader, labeled_loader, model, ema_model, optimizer, criterion, writer)
         else:
-            train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, optimizer, criterion, writer)
+            coarse_train(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, optimizer, criterion, writer)
 
         if epoch % 5 == 0:
             savepath = str(args.log_dir) + '/model.pth'
@@ -167,7 +167,7 @@ def main(args):
             torch.save(state, savepath)
 
         # validate student model ------------------------------------------------------------
-        val_result = validate(args, global_epoch, val_loader, model, optimizer, criterion, writer, is_ema=False)
+        val_result = coarse_validate(args, global_epoch, val_loader, model, optimizer, criterion, writer, is_ema=False)
         args.log_string('Student model result -----------------------------------------------')
         args.log_string('Val mean loss %s:' % (val_result[2]))
         args.log_string('Val class dice %s:' % (val_result[1]))
@@ -175,7 +175,7 @@ def main(args):
         
         # validate teacher model ------------------------------------------------------------
         if not args.baseline:
-            ema_val_result = validate(args, global_epoch, val_loader, ema_model, optimizer, criterion, writer, is_ema=True)
+            ema_val_result = coarse_validate(args, global_epoch, val_loader, ema_model, optimizer, criterion, writer, is_ema=True)
             args.log_string('Teacher model result -----------------------------------------------')
             args.log_string('Ema val mean loss %s:' % (ema_val_result[2]))
             args.log_string('Ema val class dice %s:' % (ema_val_result[1]))
