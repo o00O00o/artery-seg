@@ -78,12 +78,12 @@ class FocalLoss(nn.Module):
     def forward(self, output, target, n_classes, weights=None):
 
         output = F.log_softmax(output, 1)
-        logpt = (output*target).sum(axis=1).mean()
+        logpt = (output*target).sum(dim=1).mean()
         pt = torch.exp(logpt)
 
         if weights is not None:
             weights = weights.view(n_classes, 1, 1) * torch.ones_like(target)
-            weighted_logpt = (output*target*weights).sum(axis=1).mean()
+            weighted_logpt = (output*target*weights).sum(dim=1).mean()
             focal_loss = -((1 - pt) ** self.focusing_param) * weighted_logpt
         else:
             focal_loss = -((1 - pt) ** self.focusing_param) * logpt

@@ -107,7 +107,8 @@ def main(args):
     unlabeled_dir, labeled_dir, val_dir = split_dataset(args)
 
     unlabeled_set = Probe_Dataset(unlabeled_dir, args)
-    labeled_set = Probe_Dataset(labeled_dir, args)
+    labeled_set = AugmentDataset(args, 'label')
+    # labeled_set = Probe_Dataset(labeled_dir, args)
     val_set = Probe_Dataset(val_dir, args)
 
     args.n_weights = torch.tensor(labeled_set.labelweights).float().to(args.device)

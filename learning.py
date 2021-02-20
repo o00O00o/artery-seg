@@ -77,7 +77,7 @@ def coarse_train(args, global_epoch, labeled_loader, unlabeled_loader, stu_model
 
         logits_x = stu_model(inputs_x)
 
-        Lx = criterion(logits_x, targets_x.long(), args.n_classes, args.n_weights)
+        Lx = criterion(logits_x, targets_x.float(), args.n_classes, args.n_weights)
 
         if not args.baseline:
             consistency_weight = get_current_consistency_weight(args, global_epoch)
@@ -92,8 +92,8 @@ def coarse_train(args, global_epoch, labeled_loader, unlabeled_loader, stu_model
         optimizer.step()
 
         preds = F.softmax(logits_x, dim=1)
-        preds = preds.detach().numpy()
-        mask = targets_x.detach().numpy()
+        preds = preds.detach().cpu().numpy()
+        mask = targets_x.detach().cpu().numpy()
 
         batch_dice, batch_cat_dice = dice_coef(preds, mask)
         dice_tensor[batch_idx] = batch_cat_dice
@@ -175,7 +175,7 @@ def fine_train(args, global_epoch, labeled_loader, unlabeled_loader, stu_model, 
 
         logits_x = stu_model(inputs_x)
 
-        Lx = criterion(logits_x, targets_x.long(), args.n_classes, args.n_weights)
+        Lx = criterion(logits_x, targets_x.float(), args.n_classes, args.n_weights)
 
         if not args.baseline:
             consistency_weight = get_current_consistency_weight(args, global_epoch)
@@ -190,8 +190,8 @@ def fine_train(args, global_epoch, labeled_loader, unlabeled_loader, stu_model, 
         optimizer.step()
 
         preds = F.softmax(logits_x, dim=1)
-        preds = preds.detach().numpy()
-        mask = targets_x.detach().numpy()
+        preds = preds.detach().cpu().numpy()
+        mask = targets_x.detach().cpu().numpy()
 
         batch_dice, batch_cat_dice = dice_coef(preds, mask)
         dice_tensor[batch_idx] = batch_cat_dice
@@ -223,7 +223,7 @@ def coarse_validate(args, global_epoch, val_loader, model, optimizer, criterion,
 
             img, mask = data['img'], data['mask']
             img = img.to(args.device).float()  # (batch_size, 1, 96, 96)
-            mask = mask.to(args.device)
+            mask = mask.to(args.device).float()
 
             output = model(img)
 
@@ -231,8 +231,8 @@ def coarse_validate(args, global_epoch, val_loader, model, optimizer, criterion,
             loss_sum += loss.item()
 
             preds = F.softmax(output, dim=1)
-            preds = preds.detach().numpy()
-            mask = mask.detach().numpy()
+            preds = preds.detach().cpu().numpy()
+            mask = mask.detach().cpu().numpy()
 
             batch_dice, batch_cat_dice = dice_coef(preds, mask)
             dice_tensor[batch_idx] = batch_cat_dice
@@ -267,7 +267,7 @@ def fine_validate(args, global_epoch, val_loader, model, coarse_model, optimizer
 
             img, mask = data['img'], data['mask']
             img = img.to(args.device).float()  # (batch_size, 1, 96, 96)
-            mask = mask.to(args.device)
+            mask = mask.to(args.device).float()
 
             coarse_output = coarse_model(img)
             img = torch.cat((coarse_output, img), dim=1)
@@ -278,8 +278,8 @@ def fine_validate(args, global_epoch, val_loader, model, coarse_model, optimizer
             loss_sum += loss.item()
 
             preds = F.softmax(output, dim=1)
-            preds = preds.detach().numpy()
-            mask = mask.detach().numpy()
+            preds = preds.detach().cpu().numpy()
+            mask = mask.detach().cpu().numpy()
 
             batch_dice, batch_cat_dice = dice_coef(preds, mask)
             dice_tensor[batch_idx] = batch_cat_dice
