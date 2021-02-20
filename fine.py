@@ -147,10 +147,10 @@ def main(args):
             param_group['lr'] = lr
 
         # train --------------------------------------------------------------
-        # if args.all_label:
-        #     fine_train(args, global_epoch, labeled_loader, labeled_loader, model, ema_model, coarse_model, optimizer, criterion, writer)
-        # else:
-        #     fine_train(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, coarse_model, optimizer, criterion, writer)
+        if args.all_label:
+            fine_train(args, global_epoch, labeled_loader, labeled_loader, model, ema_model, coarse_model, optimizer, criterion, writer)
+        else:
+            fine_train(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, coarse_model, optimizer, criterion, writer)
 
         if epoch % 5 == 0:
             savepath = str(args.log_dir) + '/model.pth'
