@@ -45,23 +45,45 @@ class CrossEntropy(nn.Module):
         wce = F.cross_entropy(output, target.long(), weight=weights)
         return wce
 
+# class FocalLoss(nn.Module):
+
+#     def __init__(self, ignore_index,focusing_param=2):
+#         super(FocalLoss, self).__init__()
+
+#         self.focusing_param = focusing_param
+#         self.ignore_index = ignore_index
+
+#     def forward(self, output, target, n_classes, weights=None):
+
+#         target = torch.squeeze(target, 1)
+#         output = F.log_softmax(output, 1)
+#         logpt = -F.nll_loss(output, target.long(), ignore_index=self.ignore_index)
+#         pt = torch.exp(logpt)
+
+#         if weights is not None:
+#             weighted_logpt = -F.nll_loss(output, target.long(), weights, ignore_index=self.ignore_index)
+#             focal_loss = -((1 - pt) ** self.focusing_param) * weighted_logpt
+#         else:
+#             focal_loss = -((1 - pt) ** self.focusing_param) * logpt
+
+#         return focal_loss
+
+
 class FocalLoss(nn.Module):
 
-    def __init__(self, ignore_index,focusing_param=2):
+    def __init__(self, focusing_param=2):
         super(FocalLoss, self).__init__()
-
         self.focusing_param = focusing_param
-        self.ignore_index = ignore_index
 
     def forward(self, output, target, n_classes, weights=None):
 
-        target = torch.squeeze(target, 1)
         output = F.log_softmax(output, 1)
-        logpt = -F.nll_loss(output, target.long(), ignore_index=self.ignore_index)
+        logpt = (output*target).sum(axis=1).mean()
         pt = torch.exp(logpt)
 
         if weights is not None:
-            weighted_logpt = -F.nll_loss(output, target.long(), weights, ignore_index=self.ignore_index)
+            weights = weights.view(n_classes, 1, 1) * torch.ones_like(target)
+            weighted_logpt = (output*target*weights).sum(axis=1).mean()
             focal_loss = -((1 - pt) ** self.focusing_param) * weighted_logpt
         else:
             focal_loss = -((1 - pt) ** self.focusing_param) * logpt

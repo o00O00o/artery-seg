@@ -8,10 +8,10 @@ def initialization(args):
     MODEL = importlib.import_module(args.model)
 
     # decide the input channel of the network according to the data_mode
-    if args.data_mode == '2D':
-        initial_channel = 1
-    elif args.data_mode == '2.5D':
+    if args.stage == 'coarse':
         initial_channel = args.slices
+    elif args.stage == 'fine':
+        initial_channel = args.slices + 2
     else:
         raise NotImplementedError
 
@@ -39,6 +39,11 @@ def initialization(args):
         model = model.apply(weights_init)
         ema_model = ema_model.apply(weights_init)
         start_epoch = 0
+    
+    if args.stage == 'fine':
+        coarse_model = MODEL.get_module(args.slices, args.n_classes, 4, 4, True, True).to(args.device)
+        checkpoint = torch.load('./best_model.pth', map_location='cpu')
+        coarse_model.load_state_dict(checkpoint["model_state_dict"])
 
     # optimizer initialization -----------------------------------------
     if args.optimizer == 'Adam':
@@ -52,11 +57,14 @@ def initialization(args):
     elif args.loss_func == 'cross_entropy':
         criterion = CrossEntropy()
     elif args.loss_func == 'focal_loss':
-        criterion = FocalLoss(args.ignore_index)
+        criterion = FocalLoss()
     else:
         print('unknown loss function:{}'.format(args.loss_func))
 
     # writer initializtion ---------------------------------------------
     writer = SummaryWriter(os.path.join(args.log_dir, args.experiment_name))
 
+    if args.stage == 'fine':
+        return model, ema_model, coarse_model, optimizer, criterion, start_epoch, writer
+    
     return model, ema_model, optimizer, criterion, start_epoch, writer

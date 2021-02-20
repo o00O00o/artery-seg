@@ -3,6 +3,7 @@ import random
 import SimpleITK as sitk
 import numpy as np
 from torch.utils.data import Dataset
+from utils import mask2onehot
 
 
 def split_dataset(args):
@@ -34,12 +35,12 @@ def split_dataset(args):
     return unlabeled_set, labeled_set, val_set
 
 
-def prepare_data(data_paths, n_classes, stage):
+def prepare_data(data_paths, stage):
 
     all_idx_list = []
     env_dict = {}
     env_count = 0
-    labelweights = np.ones(n_classes).astype(np.long)
+    labelweights = np.ones(4).astype(np.long)
 
     for file_path in data_paths:
 
@@ -64,14 +65,6 @@ def prepare_data(data_paths, n_classes, stage):
         # remove anchor voxels
         mask_vol[mask_vol>3] = 0
 
-        if stage == 'coarse':
-            mask_vol[mask_vol == 2] = 1
-            mask_vol[mask_vol == 3] = 1
-        elif stage == 'fine':
-            pass
-        else:
-            raise NotImplementedError
-
         unique, counts = np.unique(mask_vol, return_counts=True)
         labelweights[unique] += counts
 
@@ -82,13 +75,20 @@ def prepare_data(data_paths, n_classes, stage):
         env_dict[env_count] = {'img': mpr_vol, 'mask': mask_vol}
         env_count += 1
 
+    if stage == 'coarse':
+        labelweights = labelweights[0:2]
+    elif stage == 'fine':
+        labelweights = labelweights[2:4]
+    else:
+        raise NotImplementedError
+
     labelweights = labelweights / np.sum(labelweights)
     labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 3.0)
 
     return all_idx_list, env_dict, labelweights
 
 def center_crop(img, mask, crop_size):
-    width, height, channel = np.shape(img)
+    channel, width, height = np.shape(img)
     assert width >= crop_size, "crop_size should be smaller than img size"
 
     gap_w, gap_h = int((width - crop_size) / 2), int((height - crop_size) / 2)
@@ -113,7 +113,7 @@ class Probe_Dataset(Dataset):
         self.data_paths = data_paths
         self.args = args
         # labelweights is used in the main function to alleviate unbalance problem
-        self.idx_list, self.env_dict, self.labelweights = prepare_data(self.data_paths, args.n_classes, args.stage)
+        self.idx_list, self.env_dict, self.labelweights = prepare_data(self.data_paths, args.stage)
 
     def __len__(self):
         length = len(self.idx_list)
@@ -129,6 +129,7 @@ class Probe_Dataset(Dataset):
             probe_img = np.expand_dims(probe_img, axis=-1)
             probe_mask = np.expand_dims(probe_mask, axis=-1)
         elif self.args.data_mode == '2.5D':
+            # image
             img_stack_list = []
             img_stack_list.append(self.env_dict[env_idx]['img'][pt_idx].astype(np.float))
             step = int((self.args.slices - 1) / 2)
@@ -137,16 +138,15 @@ class Probe_Dataset(Dataset):
                 e_idx = min(pt_idx + sum([i for i in range(i+1)]), len(self.env_dict[env_idx]['img']) - 1)
                 img_stack_list.insert(0, self.env_dict[env_idx]['img'][s_idx].astype(np.float))
                 img_stack_list.insert(-1, self.env_dict[env_idx]['img'][e_idx].astype(np.float))
-
-            probe_img = np.stack(img_stack_list, axis=-1)
+            probe_img = np.stack(img_stack_list, axis=0)
+            # mask
             probe_mask = self.env_dict[env_idx]['mask'][pt_idx].astype(np.float)
-            probe_mask = np.expand_dims(probe_mask, axis=-1)
+            probe_mask = mask2onehot(probe_mask, self.args.stage)
         else:
             print(self.args.data_mode + " is not implemented.")
             raise NotImplementedError
 
         probe_img, probe_mask = center_crop(probe_img, probe_mask, self.args.crop_size)
-        probe_mask = probe_mask.astype(np.int32)
         # probe_img = normalize(probe_img)
         sample = {'img': probe_img, 'mask': probe_mask}
 

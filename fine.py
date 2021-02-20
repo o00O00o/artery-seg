@@ -7,9 +7,9 @@ from pathlib import Path
 from dataset import split_dataset, Probe_Dataset
 from torch.utils.data import DataLoader, ConcatDataset
 from initialization import initialization
-from learning import validate, train_mean_teacher
+from learning import fine_train, fine_validate
 from over_sample import AugmentDataset
-# from dataset import count_dataset, record_dataset
+# from utils import count_dataset, record_dataset
 
 
 def parse_args():
@@ -19,7 +19,7 @@ def parse_args():
     parser.add_argument('--data_mode', type=str, default='2.5D', help='data mode')
     parser.add_argument('--dataset_mode', type=str, default='all_branch', help='dataset mode be to used: main_branch or all_branch')
     parser.add_argument('--slices', type=int, default=7, help='slices used in the 2.5D mode')
-    parser.add_argument('--n_classes', type=int, default=3, help='classes for segmentation')
+    parser.add_argument('--n_classes', type=int, default=2, help='classes for segmentation')
     parser.add_argument('--seed', type=int, default=4, help='set seed point')
     parser.add_argument('--crop_size', type=int, default=64, help='size for square patch')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch Size during training [default: 256]')
@@ -39,6 +39,7 @@ def parse_args():
     parser.add_argument('--resume', action="store_true", help='whether to resume from the checkpoint')
     parser.add_argument('--log_string', type=str, default=None, help='log string wrapper [default: None]')
     parser.add_argument('--device', type=str, default=None, help='set device type')
+    parser.add_argument('--stage', type=str, default='fine', help='mark of coarse stage')
 
     # path configurations
     parser.add_argument('--log_dir', type=str, default=None, help='Log path [default: None]')
@@ -129,7 +130,7 @@ def main(args):
     args.log_string("The number of validation data is %d" % len(val_set))
 
     # initialization -----------------------------------------------------
-    model, ema_model, optimizer, criterion, start_epoch, writer = initialization(args)
+    model, ema_model, coarse_model, optimizer, criterion, start_epoch, writer = initialization(args)
 
     global_epoch = 0
     best_epoch = 0
@@ -146,10 +147,10 @@ def main(args):
             param_group['lr'] = lr
 
         # train --------------------------------------------------------------
-        if args.all_label:
-            train_mean_teacher(args, global_epoch, labeled_loader, labeled_loader, model, ema_model, optimizer, criterion, writer)
-        else:
-            train_mean_teacher(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, optimizer, criterion, writer)
+        # if args.all_label:
+        #     fine_train(args, global_epoch, labeled_loader, labeled_loader, model, ema_model, coarse_model, optimizer, criterion, writer)
+        # else:
+        #     fine_train(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, coarse_model, optimizer, criterion, writer)
 
         if epoch % 5 == 0:
             savepath = str(args.log_dir) + '/model.pth'
@@ -166,7 +167,7 @@ def main(args):
             torch.save(state, savepath)
 
         # validate student model ------------------------------------------------------------
-        val_result = validate(args, global_epoch, val_loader, model, optimizer, criterion, writer, is_ema=False)
+        val_result = fine_validate(args, global_epoch, val_loader, model, coarse_model, optimizer, criterion, writer, is_ema=False)
         args.log_string('Student model result -----------------------------------------------')
         args.log_string('Val mean loss %s:' % (val_result[2]))
         args.log_string('Val class dice %s:' % (val_result[1]))
@@ -174,7 +175,7 @@ def main(args):
         
         # validate teacher model ------------------------------------------------------------
         if not args.baseline:
-            ema_val_result = validate(args, global_epoch, val_loader, ema_model, optimizer, criterion, writer, is_ema=True)
+            ema_val_result = fine_validate(args, global_epoch, val_loader, ema_model, coarse_model, optimizer, criterion, writer, is_ema=True)
             args.log_string('Teacher model result -----------------------------------------------')
             args.log_string('Ema val mean loss %s:' % (ema_val_result[2]))
             args.log_string('Ema val class dice %s:' % (ema_val_result[1]))
