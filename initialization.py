@@ -1,7 +1,7 @@
 import os
 import importlib
 import torch
-from losses import CrossEntropy, DiceLossMulticlass_CW, FocalLoss
+from losses import CrossEntropy, DiceLoss, FocalLoss, log_loss
 from tensorboardX import SummaryWriter
 
 def initialization(args):
@@ -53,11 +53,13 @@ def initialization(args):
 
     # loss initialization ---------------------------------------------
     if args.loss_func == 'dice':
-        criterion = DiceLossMulticlass_CW()
+        criterion = DiceLoss()
     elif args.loss_func == 'cross_entropy':
         criterion = CrossEntropy()
     elif args.loss_func == 'focal_loss':
         criterion = FocalLoss()
+    elif args.loss_func == 'log_loss':
+        criterion = log_loss()
     else:
         print('unknown loss function:{}'.format(args.loss_func))
 

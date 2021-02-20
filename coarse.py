@@ -30,7 +30,7 @@ def parse_args():
     parser.add_argument('--lr_decay', type=float, default=0.8, help='Decay rate for lr decay [default: 0.7]')
     parser.add_argument('--lr_clip', type=float, default=1e-4, help='learning rate clip')
     parser.add_argument('--optimizer', type=str, default='Adam', help='Adam or SGD [default: Adam]')
-    parser.add_argument('--loss_func', type=str, default='focal_loss', help='Loss function used for training [default: dice]')
+    parser.add_argument('--loss_func', type=str, default='dice', help='Loss function used for training [default: dice]')
     parser.add_argument('--step_size', type=int, default=50, help='Decay step')
     parser.add_argument('--ignore_index', type=int, default=3, help="ignore the given label index [default: 3(backgroud)]")
 
@@ -44,8 +44,8 @@ def parse_args():
     # path configurations
     parser.add_argument('--log_dir', type=str, default=None, help='Log path [default: None]')
     parser.add_argument('--aug_list_dir', default='./plaque_info.csv', type=str)
-    # parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
-    parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset_v3', help='folder name for training set')
+    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
+    # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset_v3', help='folder name for training set')
 
     # mean-teacher learning configurations
     parser.add_argument('--baseline', action='store_true')

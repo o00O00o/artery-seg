@@ -91,6 +91,30 @@ class FocalLoss(nn.Module):
         return focal_loss
 
 
+class DiceLoss(nn.Module):
+    def __init__(self):
+        super(DiceLoss, self).__init__()
+
+    def forward(self, output, target):
+        output = F.softmax(output, dim=1)
+        intersection = (output * target).sum()
+        dice = 2 * intersection / (output.sum() + target.sum() + 1e-7)
+        return 1 - dice
+
+
+class log_loss(nn.Module):
+    def __init__(self, w_dice = 0.5, w_cross = 0.5):
+        super(log_loss, self).__init__()
+
+    def forward(self, output, target, smooth = 1.):
+        output = F.softmax(output, dim=1)
+        area_union = torch.sum(output * target, dim = (0,2,3), keepdim = True)
+        area_logits = torch.sum(output, dim = (0,2,3), keepdim = True)
+        area_label = torch.sum(target, dim = (0,2,3), keepdim = True)
+        in_dice = torch.mean(torch.pow((-1) * torch.log((2 * area_union + 1e-7)/(area_logits + area_label + smooth)), 0.3))
+        return in_dice
+
+
 class FocalLoss_Pixel(nn.Module):
 
     def __init__(self, focusing_param=2, balanced_param=1):

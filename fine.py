@@ -44,8 +44,8 @@ def parse_args():
     # path configurations
     parser.add_argument('--log_dir', type=str, default=None, help='Log path [default: None]')
     parser.add_argument('--aug_list_dir', default='./plaque_info.csv', type=str)
-    # parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
-    parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset_v3', help='folder name for training set')
+    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
+    # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset_v3', help='folder name for training set')
 
     # mean-teacher learning configurations
     parser.add_argument('--baseline', action='store_true')
@@ -107,8 +107,8 @@ def main(args):
     unlabeled_dir, labeled_dir, val_dir = split_dataset(args)
 
     unlabeled_set = Probe_Dataset(unlabeled_dir, args)
-    labeled_set = AugmentDataset(args, 'label')
-    # labeled_set = Probe_Dataset(labeled_dir, args)
+    # labeled_set = AugmentDataset(args, 'label')
+    labeled_set = Probe_Dataset(labeled_dir, args)
     val_set = Probe_Dataset(val_dir, args)
 
     args.n_weights = torch.tensor(labeled_set.labelweights).float().to(args.device)
