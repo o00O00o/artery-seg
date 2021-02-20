@@ -43,8 +43,8 @@ def parse_args():
     # path configurations
     parser.add_argument('--log_dir', type=str, default=None, help='Log path [default: None]')
     parser.add_argument('--aug_list_dir', default='./plaque_info.csv', type=str)
-    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
-    # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset_v3', help='folder name for training set')
+    # parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
+    parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset_v3', help='folder name for training set')
 
     # mean-teacher learning configurations
     parser.add_argument('--baseline', action='store_true')
