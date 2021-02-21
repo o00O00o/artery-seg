@@ -116,9 +116,8 @@ class AugmentDataset(Dataset):
                 e_idx = min(pt_idx + sum([i for i in range(i+1)]), len(self.env_dict[env_idx]['img']) - 1)
                 img_stack_list.insert(0, self.env_dict[env_idx]['img'][s_idx].astype(np.float))
                 img_stack_list.insert(-1, self.env_dict[env_idx]['img'][e_idx].astype(np.float))
-            probe_img = np.stack(img_stack_list, axis=-1)
+            probe_img = np.stack(img_stack_list, axis=0)
             probe_mask = self.env_dict[env_idx]['mask'][pt_idx].astype(np.float)
-            probe_mask = np.expand_dims(probe_mask, axis=-1)
         else:
             print(self.args.data_mode + " is not implemented.")
             raise NotImplementedError

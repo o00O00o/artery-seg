@@ -112,9 +112,9 @@ def main(args):
     args.n_weights = torch.tensor(labeled_set.labelweights).float().to(args.device)
     args.log_string("Weights for classes:{}".format(args.n_weights))
 
-    # if args.over_sample:
+    if args.over_sample:
     #     unlabeled_set = ConcatDataset([AugmentDataset(args, 'unlabel'), unlabeled_set])
-    #     labeled_set = ConcatDataset([AugmentDataset(args, 'label'), labeled_set])
+         labeled_set = ConcatDataset([AugmentDataset(args, 'label'), labeled_set])
     #     labeled_set = AugmentDataset(args, 'label')
 
     try:

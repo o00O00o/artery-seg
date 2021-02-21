@@ -59,7 +59,7 @@ def initialization(args):
     elif args.loss_func == 'focal_loss':
         criterion = FocalLoss()
     elif args.loss_func == 'log_loss':
-        criterion = log_loss()
+        criterion = log_loss(args.stage)
     else:
         print('unknown loss function:{}'.format(args.loss_func))
 
