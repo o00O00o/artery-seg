@@ -43,8 +43,8 @@ def parse_args():
     # path configurations
     parser.add_argument('--log_dir', type=str, default=None, help='Log path [default: None]')
     parser.add_argument('--aug_list_dir', default='./plaque_info.csv', type=str)
-    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
-    # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset_v3', help='folder name for training set')
+    # parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
+    parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset_v3', help='folder name for training set')
 
     # mean-teacher learning configurations
     parser.add_argument('--baseline', action='store_true')
@@ -133,7 +133,7 @@ def main(args):
 
     global_epoch = 0
     best_epoch = 0
-    best_dice = 0
+    best_dice = -1
 
     for epoch in range(start_epoch, args.epoch):
         args.log_string('**** Epoch %d (%d/%s) ****' % (global_epoch + 1, epoch + 1, args.epoch))
