@@ -4,9 +4,10 @@ import torch.nn.functional as F
 
 
 class DiceLossMulticlass_CW(nn.Module):
-    def __init__(self):
+    def __init__(self, stage):
         super(DiceLossMulticlass_CW, self).__init__()
         self.smooth = 1e-5
+        self.stage = stage
 
     def forward(self, inputs, targets, n_classes, weights=None, validation=False):
 
@@ -18,8 +19,17 @@ class DiceLossMulticlass_CW(nn.Module):
 
         N, C = inputs.size()
         prob = torch.softmax(inputs, dim=1)
-        t_one_hot = inputs.new_zeros(inputs.size())
+        t_one_hot = inputs.new_zeros(inputs.size(0), 4)
         t_one_hot.scatter_(1, targets, 1.)
+
+        if self.stage == 'coarse':
+            t_one_hot = t_one_hot[:, 0:2]
+        elif self.stage == 'fine':
+            t_one_hot = t_one_hot[:, 2:4]
+        else:
+            pass
+
+        assert(t_one_hot.size() == inputs.size()), print("shape not match")
 
         if weights is None:
             iflat = prob.contiguous().view(-1)

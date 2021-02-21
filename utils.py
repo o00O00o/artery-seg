@@ -18,14 +18,27 @@ def mask2onehot(mask, stage):
     return _mask
 
 
-def dice_coef(output, target):
-    assert output.shape == target.shape, print("Shape of output and target should be the same.")
-    N, C, H, W = target.shape
-    output, target = output.reshape(N, C, H*W), target.reshape(N, C, H*W)
-    intersection = (output * target).sum(axis=0)
-    cat_dice = ((2. * intersection) / (output.sum(axis=0) + target.sum(axis=0) + 1e-7)).mean(axis=1)
-    dice = np.round(cat_dice.mean().item(), 4)
-    return dice, cat_dice
+def dice_coef(preds, mask, stage):
+
+    inter = np.zeros(4)
+    union = np.zeros(4)
+
+    for l in range(4):
+        inter[l] += np.sum((preds == l) & (mask == l))
+        union[l] += np.sum((preds == l) | (mask == l))
+    
+    dice_classes = (np.array(inter) * 2) / (np.array(inter) + np.array(union) + 1e-7)
+    
+    if stage == 'coarse':
+        dice_classes = dice_classes[0: 2]
+    elif stage == 'fine':
+        dice_classes = dice_classes[2: 4]
+    else:
+        raise NotImplementedError
+
+    dice = np.round(dice_classes.mean().item(), 4)
+
+    return dice, dice_classes
 
 
 def record_dataset(args):

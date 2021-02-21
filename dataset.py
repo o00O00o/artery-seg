@@ -3,7 +3,6 @@ import random
 import SimpleITK as sitk
 import numpy as np
 from torch.utils.data import Dataset
-from utils import mask2onehot
 
 
 def split_dataset(args):
@@ -93,7 +92,7 @@ def center_crop(img, mask, crop_size):
 
     gap_w, gap_h = int((width - crop_size) / 2), int((height - crop_size) / 2)
     img = img[gap_w:gap_w + crop_size, gap_h:gap_h + crop_size, :]
-    mask = mask[gap_w:gap_w + crop_size, gap_h: gap_h + crop_size, :]
+    mask = mask[gap_w:gap_w + crop_size, gap_h: gap_h + crop_size]
 
     return img, mask
 
@@ -123,28 +122,17 @@ class Probe_Dataset(Dataset):
 
         pt_idx, env_idx = self.idx_list[idx]
 
-        if self.args.data_mode == '2D':
-            probe_img = self.env_dict[env_idx]['img'][pt_idx].astype(np.float)
-            probe_mask = self.env_dict[env_idx]['mask'][pt_idx].astype(np.float)
-            probe_img = np.expand_dims(probe_img, axis=-1)
-            probe_mask = np.expand_dims(probe_mask, axis=-1)
-        elif self.args.data_mode == '2.5D':
-            # image
-            img_stack_list = []
-            img_stack_list.append(self.env_dict[env_idx]['img'][pt_idx].astype(np.float))
-            step = int((self.args.slices - 1) / 2)
-            for i in range(step):
-                s_idx = max(pt_idx - sum([i for i in range(i+1)]), 0)
-                e_idx = min(pt_idx + sum([i for i in range(i+1)]), len(self.env_dict[env_idx]['img']) - 1)
-                img_stack_list.insert(0, self.env_dict[env_idx]['img'][s_idx].astype(np.float))
-                img_stack_list.insert(-1, self.env_dict[env_idx]['img'][e_idx].astype(np.float))
-            probe_img = np.stack(img_stack_list, axis=0)
-            # mask
-            probe_mask = self.env_dict[env_idx]['mask'][pt_idx].astype(np.float)
-            probe_mask = mask2onehot(probe_mask, self.args.stage)
-        else:
-            print(self.args.data_mode + " is not implemented.")
-            raise NotImplementedError
+        img_stack_list = []
+        img_stack_list.append(self.env_dict[env_idx]['img'][pt_idx].astype(np.float))
+        step = int((self.args.slices - 1) / 2)
+        for i in range(step):
+            s_idx = max(pt_idx - sum([i for i in range(i+1)]), 0)
+            e_idx = min(pt_idx + sum([i for i in range(i+1)]), len(self.env_dict[env_idx]['img']) - 1)
+            img_stack_list.insert(0, self.env_dict[env_idx]['img'][s_idx].astype(np.float))
+            img_stack_list.insert(-1, self.env_dict[env_idx]['img'][e_idx].astype(np.float))
+        probe_img = np.stack(img_stack_list, axis=0)
+
+        probe_mask = self.env_dict[env_idx]['mask'][pt_idx].astype(np.float)
 
         probe_img, probe_mask = center_crop(probe_img, probe_mask, self.args.crop_size)
         # probe_img = normalize(probe_img)

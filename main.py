@@ -7,7 +7,7 @@ from pathlib import Path
 from dataset import split_dataset, Probe_Dataset
 from torch.utils.data import DataLoader, ConcatDataset
 from initialization import initialization
-from learning import coarse_train, coarse_validate
+from learning import train, validate
 from over_sample import AugmentDataset
 # from utils import count_dataset, record_dataset
 
@@ -32,14 +32,13 @@ def parse_args():
     parser.add_argument('--optimizer', type=str, default='Adam', help='Adam or SGD [default: Adam]')
     parser.add_argument('--loss_func', type=str, default='dice', help='Loss function used for training [default: dice]')
     parser.add_argument('--step_size', type=int, default=50, help='Decay step')
-    parser.add_argument('--ignore_index', type=int, default=3, help="ignore the given label index [default: 3(backgroud)]")
 
     # do not change following flags
     parser.add_argument('--n_weights', type=int, default=None, help='Weights for classes of segmentation or classification')
     parser.add_argument('--resume', action="store_true", help='whether to resume from the checkpoint')
     parser.add_argument('--log_string', type=str, default=None, help='log string wrapper [default: None]')
     parser.add_argument('--device', type=str, default=None, help='set device type')
-    parser.add_argument('--stage', type=str, default='coarse', help='mark of coarse stage')
+    parser.add_argument('--stage', type=str, default='fine', help='mark of coarse stage')
 
     # path configurations
     parser.add_argument('--log_dir', type=str, default=None, help='Log path [default: None]')
@@ -113,10 +112,10 @@ def main(args):
     args.n_weights = torch.tensor(labeled_set.labelweights).float().to(args.device)
     args.log_string("Weights for classes:{}".format(args.n_weights))
 
-    if args.over_sample:
-        unlabeled_set = ConcatDataset([AugmentDataset(args, 'unlabel'), unlabeled_set])
-        labeled_set = ConcatDataset([AugmentDataset(args, 'label'), labeled_set])
-        # labeled_set = AugmentDataset(args, 'label')
+    # if args.over_sample:
+    #     unlabeled_set = ConcatDataset([AugmentDataset(args, 'unlabel'), unlabeled_set])
+    #     labeled_set = ConcatDataset([AugmentDataset(args, 'label'), labeled_set])
+    #     labeled_set = AugmentDataset(args, 'label')
 
     try:
         labeled_loader = DataLoader(labeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
@@ -130,7 +129,7 @@ def main(args):
     args.log_string("The number of validation data is %d" % len(val_set))
 
     # initialization -----------------------------------------------------
-    model, ema_model, optimizer, criterion, start_epoch, writer = initialization(args)
+    models, optimizer, criterion, start_epoch, writer = initialization(args)
 
     global_epoch = 0
     best_epoch = 0
@@ -148,26 +147,28 @@ def main(args):
 
         # train --------------------------------------------------------------
         if args.all_label:
-            coarse_train(args, global_epoch, labeled_loader, labeled_loader, model, ema_model, optimizer, criterion, writer)
+            ema_loader = labeled_loader
         else:
-            coarse_train(args, global_epoch, labeled_loader, unlabeled_loader, model, ema_model, optimizer, criterion, writer)
+            ema_loader = unlabeled_loader
+
+        train(args, global_epoch, labeled_loader, ema_loader, optimizer, criterion, writer, *models)
 
         if epoch % 5 == 0:
             savepath = str(args.log_dir) + '/model.pth'
             args.log_string('Saving at %s' %savepath)
             state = {
                 'epoch': epoch,
-                'model_state_dict': model.state_dict(),
+                'model_state_dict': models[0].state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
             }
 
             if not args.baseline:
-                state['ema_model_state_dict'] = ema_model.state_dict()
+                state['ema_model_state_dict'] = models[1].state_dict()
             
             torch.save(state, savepath)
 
         # validate student model ------------------------------------------------------------
-        val_result = coarse_validate(args, global_epoch, val_loader, model, optimizer, criterion, writer, is_ema=False)
+        val_result = validate(args, global_epoch, val_loader, optimizer, criterion, writer, False, *models)
         args.log_string('Student model result -----------------------------------------------')
         args.log_string('Val mean loss %s:' % (val_result[2]))
         args.log_string('Val class dice %s:' % (val_result[1]))
@@ -175,7 +176,7 @@ def main(args):
         
         # validate teacher model ------------------------------------------------------------
         if not args.baseline:
-            ema_val_result = coarse_validate(args, global_epoch, val_loader, ema_model, optimizer, criterion, writer, is_ema=True)
+            ema_val_result = validate(args, global_epoch, val_loader, optimizer, criterion, writer, True, *models)
             args.log_string('Teacher model result -----------------------------------------------')
             args.log_string('Ema val mean loss %s:' % (ema_val_result[2]))
             args.log_string('Ema val class dice %s:' % (ema_val_result[1]))
@@ -197,12 +198,12 @@ def main(args):
             args.log_string('Saving at %s' % savepath)
             state = {
                 'epoch': epoch,
-                'model_state_dict': model.state_dict(),
+                'model_state_dict': models[0].state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
             }
 
             if not args.baseline:
-                state['ema_model_state_dict'] = ema_model.state_dict()
+                state['ema_model_state_dict'] = models[1].state_dict()
             
             torch.save(state, savepath)
 

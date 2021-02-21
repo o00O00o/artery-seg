@@ -1,7 +1,7 @@
 import os
 import importlib
 import torch
-from losses import CrossEntropy, DiceLoss, FocalLoss, log_loss
+from losses import CrossEntropy, FocalLoss, log_loss, DiceLossMulticlass_CW
 from tensorboardX import SummaryWriter
 
 def initialization(args):
@@ -53,7 +53,7 @@ def initialization(args):
 
     # loss initialization ---------------------------------------------
     if args.loss_func == 'dice':
-        criterion = DiceLoss()
+        criterion = DiceLossMulticlass_CW(args.stage)
     elif args.loss_func == 'cross_entropy':
         criterion = CrossEntropy()
     elif args.loss_func == 'focal_loss':
@@ -67,6 +67,8 @@ def initialization(args):
     writer = SummaryWriter(os.path.join(args.log_dir, args.experiment_name))
 
     if args.stage == 'fine':
-        return model, ema_model, coarse_model, optimizer, criterion, start_epoch, writer
+        models = (model, ema_model, coarse_model)
+    elif args.stage == 'coarse':
+        models = (model, ema_model)
     
-    return model, ema_model, optimizer, criterion, start_epoch, writer
+    return models, optimizer, criterion, start_epoch, writer
