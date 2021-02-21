@@ -17,7 +17,6 @@ class DiceLossMulticlass_CW(nn.Module):
         inputs = inputs.permute(0,2,1).contiguous().view(-1, inputs.size(1))
         targets = targets.permute(0,2,1).contiguous().view(-1, targets.size(1)).long()
 
-        N, C = inputs.size()
         prob = torch.softmax(inputs, dim=1)
         t_one_hot = inputs.new_zeros(inputs.size(0), 4)
         t_one_hot.scatter_(1, targets, 1.)
@@ -101,27 +100,33 @@ class FocalLoss(nn.Module):
         return focal_loss
 
 
-class DiceLoss(nn.Module):
-    def __init__(self):
-        super(DiceLoss, self).__init__()
-
-    def forward(self, output, target):
-        output = F.softmax(output, dim=1)
-        intersection = (output * target).sum()
-        dice = 2 * intersection / (output.sum() + target.sum() + 1e-7)
-        return 1 - dice
-
-
 class log_loss(nn.Module):
-    def __init__(self, w_dice = 0.5, w_cross = 0.5):
+    def __init__(self):
         super(log_loss, self).__init__()
+        self.smooth = 1e-7
 
-    def forward(self, output, target, smooth = 1.):
-        output = F.softmax(output, dim=1)
-        area_union = torch.sum(output * target, dim = (0,2,3), keepdim = True)
-        area_logits = torch.sum(output, dim = (0,2,3), keepdim = True)
-        area_label = torch.sum(target, dim = (0,2,3), keepdim = True)
-        in_dice = torch.mean(torch.pow((-1) * torch.log((2 * area_union + 1e-7)/(area_logits + area_label + smooth)), 0.3))
+    def forward(self, inputs, targets):
+
+        inputs = inputs.permute(0,2,1).contiguous().view(-1, inputs.size(1))
+        targets = targets.permute(0,2,1).contiguous().view(-1, targets.size(1)).long()
+
+        prob = torch.softmax(inputs, dim=1)
+        t_one_hot = inputs.new_zeros(inputs.size(0), 4)
+        t_one_hot.scatter_(1, targets, 1.)
+
+        if self.stage == 'coarse':
+            t_one_hot = t_one_hot[:, 0:2]
+        elif self.stage == 'fine':
+            t_one_hot = t_one_hot[:, 2:4]
+        else:
+            pass
+
+        assert(t_one_hot.size() == inputs.size()), print("shape not match")
+
+        iflat = prob.contiguous().view(-1)
+        tflat = t_one_hot.contiguous().view(-1)
+        intersection = (iflat * tflat).sum()
+        in_dice = torch.mean(torch.pow((-1) * torch.log((2 * intersection + self.smooth)/(iflat.sum() + tflat.sum() + self.smooth)), 0.3))
         return in_dice
 
 

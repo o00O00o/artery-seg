@@ -74,15 +74,15 @@ def prepare_data(data_paths, stage):
         env_dict[env_count] = {'img': mpr_vol, 'mask': mask_vol}
         env_count += 1
 
+    labelweights = labelweights / np.sum(labelweights)
+    labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 3.0)
+
     if stage == 'coarse':
         labelweights = labelweights[0:2]
     elif stage == 'fine':
         labelweights = labelweights[2:4]
     else:
         raise NotImplementedError
-
-    labelweights = labelweights / np.sum(labelweights)
-    labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 3.0)
 
     return all_idx_list, env_dict, labelweights
 
