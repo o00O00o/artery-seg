@@ -81,6 +81,8 @@ def prepare_data(data_paths, stage):
         labelweights = labelweights[0:2]
     elif stage == 'fine':
         labelweights = labelweights[2:4]
+    elif stage == 'soft':
+        labelweights = np.array([1.])
     else:
         raise NotImplementedError
 

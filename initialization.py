@@ -10,7 +10,7 @@ def initialization(args):
     # decide the input channel of the network according to the data_mode
     if args.stage == 'coarse':
         initial_channel = args.slices
-    elif args.stage == 'fine':
+    elif args.stage == 'fine' or args.stage == 'soft':
         initial_channel = args.slices + 2
     else:
         raise NotImplementedError
@@ -40,8 +40,8 @@ def initialization(args):
         ema_model = ema_model.apply(weights_init)
         start_epoch = 0
     
-    if args.stage == 'fine':
-        coarse_model = MODEL.get_module(args.slices, args.n_classes, 4, 4, True, True).to(args.device)
+    if args.stage == 'fine' or args.stage == 'soft':
+        coarse_model = MODEL.get_module(args.slices, 2, 4, 4, True, True).to(args.device)
         checkpoint = torch.load('./best_model.pth', map_location='cpu')
         coarse_model.load_state_dict(checkpoint["model_state_dict"])
 
@@ -66,7 +66,7 @@ def initialization(args):
     # writer initializtion ---------------------------------------------
     writer = SummaryWriter(os.path.join(args.log_dir, args.experiment_name))
 
-    if args.stage == 'fine':
+    if args.stage == 'fine' or args.stage == 'soft':
         models = (model, ema_model, coarse_model)
     elif args.stage == 'coarse':
         models = (model, ema_model)

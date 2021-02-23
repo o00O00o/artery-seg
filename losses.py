@@ -9,7 +9,7 @@ class DiceLossMulticlass_CW(nn.Module):
         self.smooth = 1e-5
         self.stage = stage
 
-    def forward(self, inputs, targets, n_classes, weights=None, validation=False):
+    def forward(self, inputs, targets, weights=None):
 
         if weights is not None:
             weights = weights / weights.sum()
@@ -17,7 +17,8 @@ class DiceLossMulticlass_CW(nn.Module):
         inputs = inputs.permute(0,2,1).contiguous().view(-1, inputs.size(1))
         targets = targets.permute(0,2,1).contiguous().view(-1, targets.size(1)).long()
 
-        prob = torch.softmax(inputs, dim=1)
+        prob = torch.sigmoid(inputs)
+
         t_one_hot = inputs.new_zeros(inputs.size(0), 4)
         t_one_hot.scatter_(1, targets, 1.)
 
@@ -25,6 +26,8 @@ class DiceLossMulticlass_CW(nn.Module):
             t_one_hot = t_one_hot[:, 0:2]
         elif self.stage == 'fine':
             t_one_hot = t_one_hot[:, 2:4]
+        elif self.stage == 'soft':
+            t_one_hot = t_one_hot[:, 3:4]
         else:
             pass
 

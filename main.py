@@ -30,7 +30,7 @@ def parse_args():
     parser.add_argument('--lr_decay', type=float, default=0.8, help='Decay rate for lr decay [default: 0.7]')
     parser.add_argument('--lr_clip', type=float, default=1e-4, help='learning rate clip')
     parser.add_argument('--optimizer', type=str, default='Adam', help='Adam or SGD [default: Adam]')
-    parser.add_argument('--loss_func', type=str, default='log_loss', help='Loss function used for training [default: dice]')
+    parser.add_argument('--loss_func', type=str, default='dice', help='Loss function used for training [default: dice]')
     parser.add_argument('--step_size', type=int, default=50, help='Decay step')
 
     # do not change following flags
@@ -222,8 +222,10 @@ if __name__ == "__main__":
     if args.all_label:
         args.labeled_num = args.labeled_num + args.unlabeled_num
         args.unlabeled_num = 0
+    
+    if args.stage == 'soft':
+        args.n_classes = 1
 
-    args.over_sample = True
     set_seed(args)
     make_dir_log(args)
     best_mean_dice, best_class_dice = main(args)

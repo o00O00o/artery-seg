@@ -47,6 +47,9 @@ def transforms_back_scale(ema_inputs, scale_mask, image_size=64):
     
         resized_img = cv2.resize(img, (int(scale_mask[idx]), int(scale_mask[idx])), interpolation=cv2.INTER_CUBIC)  # (66, 66, 4)
 
+        if len(resized_img.shape) == 2:
+            resized_img = np.expand_dims(resized_img, axis=-1)
+
         if scale_mask[idx] > image_size:
             returned_img[idx] = resized_img[int(scale_mask[idx] / 2) - half_size:int(scale_mask[idx] / 2) + half_size, int(scale_mask[idx] / 2) - half_size:int(scale_mask[idx] / 2) + half_size, :]
         else:

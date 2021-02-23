@@ -30,7 +30,7 @@ def train(args, global_epoch, labeled_loader, unlabeled_loader, optimizer, crite
     stu_model.train()
     ema_model.train()
 
-    if args.stage == 'fine':
+    if args.stage == 'fine' or args.stage == 'soft':
         coarse_model = models[2]
         coarse_model.eval()
 
@@ -55,7 +55,7 @@ def train(args, global_epoch, labeled_loader, unlabeled_loader, optimizer, crite
         inputs_x, targets_x = data['img'], data['mask']
         inputs_x, targets_x = inputs_x.to(args.device).float(), targets_x.to(args.device)
 
-        if args.stage == 'fine':
+        if args.stage == 'fine' or args.stage == 'soft':
             coarse_output = coarse_model(inputs_x)
             inputs_x = torch.cat((coarse_output, inputs_x), dim=1)
 
@@ -69,7 +69,7 @@ def train(args, global_epoch, labeled_loader, unlabeled_loader, optimizer, crite
             inputs_stu = data['img']
             inputs_stu = inputs_stu.to(args.device).float()
 
-            if args.stage == 'fine':
+            if args.stage == 'fine' or args.stage == 'soft':
                 coarse_output = coarse_model(inputs_stu)
                 inputs_stu = torch.cat((coarse_output, inputs_stu), dim=1)
 
@@ -95,7 +95,7 @@ def train(args, global_epoch, labeled_loader, unlabeled_loader, optimizer, crite
         logits_x = logits_x.reshape(logits_x.size(0), args.n_classes, -1)
         targets_x = targets_x.reshape(targets_x.size(0), 1, -1)
 
-        Lx = criterion(logits_x, targets_x.float(), args.n_classes, args.n_weights)
+        Lx = criterion(logits_x, targets_x.float(), args.n_weights)
 
         if not args.baseline:
             consistency_weight = get_current_consistency_weight(args, global_epoch)
@@ -109,11 +109,8 @@ def train(args, global_epoch, labeled_loader, unlabeled_loader, optimizer, crite
         loss.backward()
         optimizer.step()
 
-        preds = F.softmax(logits_x, dim=1).data.max(1)[1]
-        mask = torch.squeeze(targets_x, 1)
-
-        preds = preds.detach().cpu().numpy()
-        mask = mask.detach().cpu().numpy()
+        preds = logits_x.detach().cpu()
+        mask = targets_x.detach().cpu()
 
         batch_dice, batch_cat_dice = dice_coef(preds, mask, args.stage)
         dice_tensor[batch_idx] = batch_cat_dice
@@ -141,7 +138,7 @@ def validate(args, global_epoch, val_loader, optimizer, criterion, writer, is_em
 
     model.eval()
 
-    if args.stage == 'fine':
+    if args.stage == 'fine' or args.stage =='soft':
         coarse_model = models[2]
         coarse_model.eval()
     
@@ -155,7 +152,7 @@ def validate(args, global_epoch, val_loader, optimizer, criterion, writer, is_em
             img = img.to(args.device).float()  # (batch_size, 1, 96, 96)
             mask = mask.to(args.device).float()
 
-            if args.stage == 'fine':
+            if args.stage == 'fine' or args.stage == 'soft':
                 coarse_output = coarse_model(img)
                 img = torch.cat((coarse_output, img), dim=1)
 
@@ -164,14 +161,11 @@ def validate(args, global_epoch, val_loader, optimizer, criterion, writer, is_em
             output = output.reshape(output.size(0), args.n_classes, -1)
             mask = mask.reshape(mask.size(0), 1, -1)
 
-            loss = criterion(output, mask, args.n_classes, weights=args.n_weights)
+            loss = criterion(output, mask, weights=args.n_weights)
             loss_sum += loss.item()
 
-            preds = F.softmax(output, dim=1).data.max(1)[1]
-            mask = torch.squeeze(mask, 1)
-
-            preds = preds.detach().cpu().numpy()
-            mask = mask.detach().cpu().numpy()
+            preds = output.detach().cpu()
+            mask = output.detach().cpu()
 
             batch_dice, batch_cat_dice = dice_coef(preds, mask, args.stage)
             dice_tensor[batch_idx] = batch_cat_dice

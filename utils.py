@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import SimpleITK as sitk
 import numpy as np
+import torch
 
 
 def mask2onehot(mask, stage):
@@ -18,30 +19,56 @@ def mask2onehot(mask, stage):
     return _mask
 
 
-def dice_coef(preds, mask, stage):
+def dice_coef(inputs, targets, stage):
 
-    inter = np.zeros(4)
-    union = np.zeros(4)
-    
-    if stage == 'fine':
-        preds += 2
+    inputs = inputs.permute(0,2,1).contiguous().view(-1, inputs.size(1))
+    targets = targets.permute(0,2,1).contiguous().view(-1, targets.size(1)).long()
 
-    for l in range(4):
-        inter[l] += np.sum((preds == l) & (mask == l))
-        union[l] += np.sum((preds == l) | (mask == l))
-    
-    dice_classes = (np.array(inter) * 2) / (np.array(inter) + np.array(union) + 1e-7)
-    
+    t_one_hot = inputs.new_zeros(inputs.size(0), 4)
+    t_one_hot.scatter_(1, targets, 1.)
+
+    prob = torch.sigmoid(inputs)
+
     if stage == 'coarse':
-        dice_classes = dice_classes[0: 2]
+        t_one_hot = t_one_hot[:, 0:2]
     elif stage == 'fine':
-        dice_classes = dice_classes[2: 4]
+        t_one_hot = t_one_hot[:, 2:4]
+    elif stage == 'soft':
+        t_one_hot = t_one_hot[:, 3:4]
     else:
-        raise NotImplementedError
+        pass
 
+    assert(t_one_hot.size() == inputs.size()), print("shape not match")
+
+    intersection = (prob * t_one_hot).sum(0)
+    dice_classes = ((2. * intersection) / (prob.sum() + t_one_hot.sum() + 1e-7)).numpy()
     dice = np.round(dice_classes.mean().item(), 4)
-
     return dice, dice_classes
+
+# def dice_coef(preds, mask, stage):
+
+#     inter = np.zeros(4)
+#     union = np.zeros(4)
+    
+#     if stage == 'fine' or stage == 'soft':
+#         preds += 2
+
+#     for l in range(4):
+#         inter[l] += np.sum((preds == l) & (mask == l))
+#         union[l] += np.sum((preds == l) | (mask == l))
+    
+#     dice_classes = (np.array(inter) * 2) / (np.array(inter) + np.array(union) + 1e-7)
+    
+#     if stage == 'coarse':
+#         dice_classes = dice_classes[0: 2]
+#     elif stage == 'fine':
+#         dice_classes = dice_classes[2: 4]
+#     else:
+#         raise NotImplementedError
+
+#     dice = np.round(dice_classes.mean().item(), 4)
+
+#     return dice, dice_classes
 
 
 def record_dataset(args):
