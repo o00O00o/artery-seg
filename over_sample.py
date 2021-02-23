@@ -24,8 +24,6 @@ def parse_args():
     parser.add_argument('--slices', type=int, default=7, help='slices used in the 2.5D mode')
     parser.add_argument('--aug_list_dir', default='./plaque_info.csv', type=str)
     parser.add_argument('--over_sample', action="store_true")
-    parser.add_argument('--loss_func', type=str, default='dice', help='Loss function used for training [default: dice]')
-    parser.add_argument('--batch_size', type=int, default=64, help='Batch Size during training [default: 256]')
     parser.add_argument('--all_label', action='store_true', help='full supervised configuration if set true')
     parser.add_argument('--data_mode', type=str, default='2D', help='data mode')
     parser.add_argument('--dataset_mode', type=str, default='all_branch', help='dataset mode be to used: main_branch or all_branch')
@@ -116,15 +114,13 @@ class AugmentDataset(Dataset):
                 e_idx = min(pt_idx + sum([i for i in range(i+1)]), len(self.env_dict[env_idx]['img']) - 1)
                 img_stack_list.insert(0, self.env_dict[env_idx]['img'][s_idx].astype(np.float))
                 img_stack_list.insert(-1, self.env_dict[env_idx]['img'][e_idx].astype(np.float))
-            probe_img = np.stack(img_stack_list, axis=-1)
+            probe_img = np.stack(img_stack_list, axis=0)
             probe_mask = self.env_dict[env_idx]['mask'][pt_idx].astype(np.float)
-            probe_mask = np.expand_dims(probe_mask, axis=-1)
         else:
             print(self.args.data_mode + " is not implemented.")
             raise NotImplementedError
 
         probe_img, probe_mask = center_crop(probe_img, probe_mask, self.args.crop_size)
-        probe_mask = probe_mask.astype(np.int32)
 
         # augmentation
         if self.augmentation:

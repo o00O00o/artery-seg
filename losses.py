@@ -101,11 +101,12 @@ class FocalLoss(nn.Module):
 
 
 class log_loss(nn.Module):
-    def __init__(self):
+    def __init__(self, stage):
         super(log_loss, self).__init__()
         self.smooth = 1e-7
+        self.stage = stage
 
-    def forward(self, inputs, targets):
+    def forward(self, inputs, targets, num_classes, weights):
 
         inputs = inputs.permute(0,2,1).contiguous().view(-1, inputs.size(1))
         targets = targets.permute(0,2,1).contiguous().view(-1, targets.size(1)).long()

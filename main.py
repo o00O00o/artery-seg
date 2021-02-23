@@ -30,7 +30,7 @@ def parse_args():
     parser.add_argument('--lr_decay', type=float, default=0.8, help='Decay rate for lr decay [default: 0.7]')
     parser.add_argument('--lr_clip', type=float, default=1e-4, help='learning rate clip')
     parser.add_argument('--optimizer', type=str, default='Adam', help='Adam or SGD [default: Adam]')
-    parser.add_argument('--loss_func', type=str, default='dice', help='Loss function used for training [default: dice]')
+    parser.add_argument('--loss_func', type=str, default='log_loss', help='Loss function used for training [default: dice]')
     parser.add_argument('--step_size', type=int, default=50, help='Decay step')
 
     # do not change following flags
@@ -112,9 +112,9 @@ def main(args):
     args.n_weights = torch.tensor(labeled_set.labelweights).float().to(args.device)
     args.log_string("Weights for classes:{}".format(args.n_weights))
 
-    # if args.over_sample:
+    if args.over_sample:
     #     unlabeled_set = ConcatDataset([AugmentDataset(args, 'unlabel'), unlabeled_set])
-    #     labeled_set = ConcatDataset([AugmentDataset(args, 'label'), labeled_set])
+        labeled_set = ConcatDataset([AugmentDataset(args, 'label'), labeled_set])
     #     labeled_set = AugmentDataset(args, 'label')
 
     try:
@@ -223,6 +223,7 @@ if __name__ == "__main__":
         args.labeled_num = args.labeled_num + args.unlabeled_num
         args.unlabeled_num = 0
 
+    args.over_sample = True
     set_seed(args)
     make_dir_log(args)
     best_mean_dice, best_class_dice = main(args)
