@@ -123,7 +123,6 @@ class AugmentDataset(Dataset):
             raise NotImplementedError
 
         probe_img, probe_mask = center_crop(probe_img, probe_mask, self.args.crop_size)
-        probe_mask = probe_mask.astype(np.int32)
 
         # augmentation
         if self.augmentation:

@@ -114,8 +114,8 @@ def main(args):
 
     if args.over_sample:
     #     unlabeled_set = ConcatDataset([AugmentDataset(args, 'unlabel'), unlabeled_set])
-         labeled_set = ConcatDataset([AugmentDataset(args, 'label'), labeled_set])
-    #     labeled_set = AugmentDataset(args, 'label')
+    #     labeled_set = ConcatDataset([AugmentDataset(args, 'label'), labeled_set])
+        labeled_set = AugmentDataset(args, 'label')
 
     try:
         labeled_loader = DataLoader(labeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
