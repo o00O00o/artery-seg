@@ -22,7 +22,7 @@ def dice_coef(preds, mask, stage):
 
     inter = np.zeros(4)
     union = np.zeros(4)
-
+    
     if stage == 'fine':
         preds += 2
 

@@ -5,7 +5,7 @@ import numpy as np
 import argparse
 from pathlib import Path
 from dataset import split_dataset, Probe_Dataset
-from torch.utils.data import DataLoader, ConcatDataset
+from torch.utils.data import DataLoader, ConcatDataset, random_split
 from initialization import initialization
 from learning import train, validate
 from over_sample import AugmentDataset
@@ -43,8 +43,8 @@ def parse_args():
     # path configurations
     parser.add_argument('--log_dir', type=str, default=None, help='Log path [default: None]')
     parser.add_argument('--aug_list_dir', default='./plaque_info.csv', type=str)
-    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
-    # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset_v3', help='folder name for training set')
+    # parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
+    parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset_v3', help='folder name for training set')
 
     # mean-teacher learning configurations
     parser.add_argument('--baseline', action='store_true')
@@ -113,9 +113,9 @@ def main(args):
     args.log_string("Weights for classes:{}".format(args.n_weights))
 
     if args.over_sample:
+        part_set, _ = random_split(labeled_set, [6000, len(labeled_set)-6000])
     #     unlabeled_set = ConcatDataset([AugmentDataset(args, 'unlabel'), unlabeled_set])
-        labeled_set = ConcatDataset([AugmentDataset(args, 'label'), labeled_set])
-    #     labeled_set = AugmentDataset(args, 'label')
+        labeled_set = ConcatDataset([AugmentDataset(args, 'label'), part_set])
 
     try:
         labeled_loader = DataLoader(labeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
@@ -133,7 +133,7 @@ def main(args):
 
     global_epoch = 0
     best_epoch = 0
-    best_dice = 0
+    best_dice = -1
 
     for epoch in range(start_epoch, args.epoch):
         args.log_string('**** Epoch %d (%d/%s) ****' % (global_epoch + 1, epoch + 1, args.epoch))
