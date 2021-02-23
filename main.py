@@ -5,7 +5,7 @@ import numpy as np
 import argparse
 from pathlib import Path
 from dataset import split_dataset, Probe_Dataset
-from torch.utils.data import DataLoader, ConcatDataset
+from torch.utils.data import DataLoader, ConcatDataset, random_split
 from initialization import initialization
 from learning import train, validate
 from over_sample import AugmentDataset
@@ -113,9 +113,9 @@ def main(args):
     args.log_string("Weights for classes:{}".format(args.n_weights))
 
     if args.over_sample:
+        part_set, _ = random_split(labeled_set, [6000, len(labeled_set)-6000])
     #     unlabeled_set = ConcatDataset([AugmentDataset(args, 'unlabel'), unlabeled_set])
-    #     labeled_set = ConcatDataset([AugmentDataset(args, 'label'), labeled_set])
-        labeled_set = AugmentDataset(args, 'label')
+        labeled_set = ConcatDataset([AugmentDataset(args, 'label'), part_set])
 
     try:
         labeled_loader = DataLoader(labeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
