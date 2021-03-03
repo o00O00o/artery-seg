@@ -7,7 +7,7 @@ from torch.utils.data import Dataset
 
 def split_dataset(args):
     # get the path list of all annotated data -----------------------------------
-    target_paths = [os.path.join(args.data_dir, str(i)) for i in range(150)]
+    target_paths = [os.path.join(args.data_dir, str(i)) for i in range(args.case_num)]
 
     # split the dataset -----------------------------------
     unlabeled_dirs = target_paths[:args.unlabeled_num]
@@ -64,6 +64,10 @@ def prepare_data(data_paths, stage):
         # remove anchor voxels
         mask_vol[mask_vol>3] = 0
 
+        if stage == 'coarse':
+            mask_vol[mask_vol == 2] = 1
+            mask_vol[mask_vol == 3] = 1
+
         unique, counts = np.unique(mask_vol, return_counts=True)
         labelweights[unique] += counts
 
@@ -93,7 +97,7 @@ def center_crop(img, mask, crop_size):
     assert width >= crop_size, "crop_size should be smaller than img size"
 
     gap_w, gap_h = int((width - crop_size) / 2), int((height - crop_size) / 2)
-    img = img[gap_w:gap_w + crop_size, gap_h:gap_h + crop_size, :]
+    img = img[:, gap_w:gap_w + crop_size, gap_h:gap_h + crop_size]
     mask = mask[gap_w:gap_w + crop_size, gap_h: gap_h + crop_size]
 
     return img, mask

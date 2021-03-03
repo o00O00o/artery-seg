@@ -5,6 +5,7 @@ import numpy as np
 from losses import softmax_mse_loss
 from transformations import *
 from utils import dice_coef
+import torchvision.utils as vutils
 
 
 def sigmoid_rampup(current, rampup_length):
@@ -53,6 +54,9 @@ def train(args, global_epoch, labeled_loader, unlabeled_loader, optimizer, crite
             data = labeled_train_iter.next()
         
         inputs_x, targets_x = data['img'], data['mask']
+        visual_image = vutils.make_grid(inputs_x[:, 3, :, :].unsqueeze(1), normalize=True, scale_each=True)
+        visual_mask = vutils.make_grid(targets_x.unsqueeze(1), normalize=True, scale_each=True)
+
         inputs_x, targets_x = inputs_x.to(args.device).float(), targets_x.to(args.device)
 
         if args.stage == 'fine' or args.stage == 'soft':
@@ -91,6 +95,16 @@ def train(args, global_epoch, labeled_loader, unlabeled_loader, optimizer, crite
         iter_num = batch_idx + global_epoch * num_iteration_per_epoch
 
         logits_x = stu_model(inputs_x)
+
+        visual_preds = torch.sigmoid(logits_x).detach().cpu()
+
+        visual_preds_Ch1 = vutils.make_grid(visual_preds[:, 1, :, :].unsqueeze(1), normalize=True, scale_each=True)
+        visual_preds_Ch2 = vutils.make_grid(visual_preds[:, 1, :, :].unsqueeze(1), normalize=True, scale_each=True)
+
+        writer.add_image('img/train_img', visual_image, iter_num)
+        writer.add_image('img/train_mask', visual_mask, iter_num)
+        writer.add_image('img/train_preds_1Ch', visual_preds_Ch1, iter_num)
+        writer.add_image('img/train_preds_2Ch', visual_preds_Ch2, iter_num)
 
         logits_x = logits_x.reshape(logits_x.size(0), args.n_classes, -1)
         targets_x = targets_x.reshape(targets_x.size(0), 1, -1)
@@ -165,7 +179,7 @@ def validate(args, global_epoch, val_loader, optimizer, criterion, writer, is_em
             loss_sum += loss.item()
 
             preds = output.detach().cpu()
-            mask = output.detach().cpu()
+            mask = mask.detach().cpu()
 
             batch_dice, batch_cat_dice = dice_coef(preds, mask, args.stage)
             dice_tensor[batch_idx] = batch_cat_dice

@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader, ConcatDataset, random_split
 from initialization import initialization
 from learning import train, validate
 from over_sample import AugmentDataset
-# from utils import count_dataset, record_dataset
+from utils import count_dataset, record_dataset
 
 
 def parse_args():
@@ -21,7 +21,7 @@ def parse_args():
     parser.add_argument('--slices', type=int, default=7, help='slices used in the 2.5D mode')
     parser.add_argument('--n_classes', type=int, default=2, help='classes for segmentation')
     parser.add_argument('--seed', type=int, default=4, help='set seed point')
-    parser.add_argument('--crop_size', type=int, default=64, help='size for square patch')
+    parser.add_argument('--crop_size', type=int, default=96, help='size for square patch')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch Size during training [default: 256]')
     parser.add_argument('--epoch', default=400, type=int, help='Epoch to run [default: 300]')
     parser.add_argument('--num_workers', default=4, type=int, help='num workers')
@@ -38,13 +38,14 @@ def parse_args():
     parser.add_argument('--resume', action="store_true", help='whether to resume from the checkpoint')
     parser.add_argument('--log_string', type=str, default=None, help='log string wrapper [default: None]')
     parser.add_argument('--device', type=str, default=None, help='set device type')
-    parser.add_argument('--stage', type=str, default='fine', help='mark of coarse stage')
+    parser.add_argument('--stage', type=str, default='coarse', help='mark of coarse stage')
 
     # path configurations
     parser.add_argument('--log_dir', type=str, default=None, help='Log path [default: None]')
     parser.add_argument('--aug_list_dir', default='./plaque_info.csv', type=str)
     # parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
-    parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset_v3', help='folder name for training set')
+    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset', help='folder name for training set')
+    # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset_v3', help='folder name for training set')
 
     # mean-teacher learning configurations
     parser.add_argument('--baseline', action='store_true')
@@ -54,9 +55,9 @@ def parse_args():
     parser.add_argument('--ema-decay', type=float, default=0.999)
 
     # mean-teacher data configurations
-    parser.add_argument('--case_num', type=int, default=150, help='the num of total case')
-    parser.add_argument('--unlabeled_num', default=75, type=int, help='the num of unlabeded case')
-    parser.add_argument('--labeled_num', default=50, type=int, help='the num of labeled case')
+    parser.add_argument('--case_num', type=int, default=21, help='the num of total case')
+    parser.add_argument('--unlabeled_num', default=9, type=int, help='the num of unlabeded case')
+    parser.add_argument('--labeled_num', default=9, type=int, help='the num of labeled case')
     parser.add_argument('--all_label', action='store_true', help='full supervised configuration if set true')
     parser.add_argument('--over_sample', action="store_true")
     parser.add_argument('--times', default=5, type=int)
@@ -218,6 +219,9 @@ def main(args):
 if __name__ == "__main__":
 
     args = parse_args()
+
+    args.all_label = True
+    args.baseline = True
 
     if args.all_label:
         args.labeled_num = args.labeled_num + args.unlabeled_num

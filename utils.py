@@ -41,7 +41,7 @@ def dice_coef(inputs, targets, stage):
     assert(t_one_hot.size() == inputs.size()), print("shape not match")
 
     intersection = (prob * t_one_hot).sum(0)
-    dice_classes = ((2. * intersection) / (prob.sum() + t_one_hot.sum() + 1e-7)).numpy()
+    dice_classes = ((2. * intersection) / (prob.sum(0) + t_one_hot.sum(0) + 1e-7)).numpy()
     dice = np.round(dice_classes.mean().item(), 4)
     return dice, dice_classes
 
@@ -175,6 +175,7 @@ def count_dataset(args):
         total_list += label_count
         
     case_count = len(set(case_count_list))
+    print(set(case_count_list))
     print("Case num contains soft plaque: {}".format(case_count))
     print("Branch num contains soft plaque: {}".format(branch_count))
     print("Slice num contains soft plaque: {}".format(int(slice_count)))
