@@ -39,14 +39,12 @@ def parse_args():
     parser.add_argument('--resume', action="store_true", help='whether to resume from the checkpoint')
     parser.add_argument('--log_string', type=str, default=None, help='log string wrapper [default: None]')
     parser.add_argument('--device', type=str, default=None, help='set device type')
-    parser.add_argument('--stage', type=str, default='soft', help='mark of coarse stage')
+    parser.add_argument('--stage', type=str, default='both', help='mark of coarse stage')
 
     # path configurations
     parser.add_argument('--log_dir', type=str, default=None, help='Log path [default: None]')
-    parser.add_argument('--aug_list_dir', default='artery-seg/soft.csv', type=str)
+    parser.add_argument('--aug_list_dir', default='artery-seg/plaque_info.csv', type=str)
     parser.add_argument('--data_dir', default='/home/gyb/Datasets/plaques/all_subset_v3', help='folder name for training set')
-    # parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
-    # parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset', help='folder name for training set')
     # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset_v3', help='folder name for training set')
 
     # mean-teacher learning configurations
@@ -57,9 +55,9 @@ def parse_args():
     parser.add_argument('--ema-decay', type=float, default=0.999)
 
     # mean-teacher data configurations
-    parser.add_argument('--case_num', type=int, default=150, help='the num of total case')
-    parser.add_argument('--unlabeled_num', default=75, type=int, help='the num of unlabeded case')
-    parser.add_argument('--labeled_num', default=50, type=int, help='the num of labeled case')
+    parser.add_argument('--case_num', type=int, default=77, help='the num of total case')
+    parser.add_argument('--unlabeled_num', default=36, type=int, help='the num of unlabeded case')
+    parser.add_argument('--labeled_num', default=24, type=int, help='the num of labeled case')
     parser.add_argument('--all_label', action='store_true', help='full supervised configuration if set true')
     parser.add_argument('--over_sample', action="store_true")
     parser.add_argument('--times', default=5, type=int)
@@ -118,9 +116,6 @@ def main(args):
     args.log_string("Weights for classes:{}".format(args.n_weights))
 
     if args.over_sample:
-        # part_set, _ = random_split(labeled_set, [6000, len(labeled_set)-6000])
-        # unlabeled_set = ConcatDataset([AugmentDataset(args, 'unlabel'), unlabeled_set])
-        # labeled_set = ConcatDataset([AugmentDataset(args, 'label'), part_set])
         labeled_set = AugmentDataset(args, 'label')
         val_set = AugmentDataset(args, 'val')
 
@@ -226,15 +221,14 @@ if __name__ == "__main__":
 
     args = parse_args()
 
-    # args.all_label = True
-    args.over_sample = True
-    args.baseline = True
+    args.all_label = True
+    args.baseline = False
 
     if args.all_label:
         args.labeled_num = args.labeled_num + args.unlabeled_num
         args.unlabeled_num = 0
     
-    if args.stage == 'soft':
+    if args.stage == 'plaque':
         args.n_classes = 1
 
     set_seed(args)

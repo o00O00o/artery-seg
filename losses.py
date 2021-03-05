@@ -22,12 +22,10 @@ class DiceLossMulticlass_CW(nn.Module):
         t_one_hot = inputs.new_zeros(inputs.size(0), 4)
         t_one_hot.scatter_(1, targets, 1.)
 
-        if self.stage == 'coarse':
-            t_one_hot = t_one_hot[:, 0:2]
-        elif self.stage == 'fine':
-            t_one_hot = t_one_hot[:, 2:4]
-        elif self.stage == 'soft':
-            t_one_hot = t_one_hot[:, 3:4]
+        if self.stage == 'both':
+            t_one_hot = t_one_hot[:, 1:3]
+        elif self.stage == 'plaque':
+            t_one_hot = t_one_hot[:, 2:3]
         else:
             pass
 

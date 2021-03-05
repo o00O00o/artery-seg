@@ -7,16 +7,8 @@ from tensorboardX import SummaryWriter
 def initialization(args):
     MODEL = importlib.import_module(args.model)
 
-    # decide the input channel of the network according to the data_mode
-    if args.stage == 'coarse':
-        initial_channel = args.slices
-    elif args.stage == 'fine' or args.stage == 'soft':
-        initial_channel = args.slices + 2
-    else:
-        raise NotImplementedError
-
-    model = MODEL.get_module(initial_channel, args.n_classes, 4, 4, True, True).to(args.device)
-    ema_model = MODEL.get_module(initial_channel, args.n_classes, 4, 4, True, True).to(args.device)
+    model = MODEL.get_module(args.slices, args.n_classes, 4, 4, True, True).to(args.device)
+    ema_model = MODEL.get_module(args.slices, args.n_classes, 4, 4, True, True).to(args.device)
 
     def weights_init(m):
         classname = m.__class__.__name__
@@ -40,11 +32,6 @@ def initialization(args):
         ema_model = ema_model.apply(weights_init)
         start_epoch = 0
     
-    if args.stage == 'fine' or args.stage == 'soft':
-        coarse_model = MODEL.get_module(args.slices, 2, 4, 4, True, True).to(args.device)
-        checkpoint = torch.load('artery-seg/best_model.pth', map_location='cpu')
-        coarse_model.load_state_dict(checkpoint["model_state_dict"])
-
     # optimizer initialization -----------------------------------------
     if args.optimizer == 'Adam':
         optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, betas=(0.9, 0.999), eps=1e-8)
@@ -66,9 +53,6 @@ def initialization(args):
     # writer initializtion ---------------------------------------------
     writer = SummaryWriter(os.path.join(args.log_dir, args.experiment_name))
 
-    if args.stage == 'fine' or args.stage == 'soft':
-        models = (model, ema_model, coarse_model)
-    elif args.stage == 'coarse':
-        models = (model, ema_model)
+    models = (model, ema_model)
     
     return models, optimizer, criterion, start_epoch, writer

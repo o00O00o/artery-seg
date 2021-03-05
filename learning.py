@@ -31,10 +31,6 @@ def train(args, global_epoch, labeled_loader, unlabeled_loader, optimizer, crite
     stu_model.train()
     ema_model.train()
 
-    if args.stage == 'fine' or args.stage == 'soft':
-        coarse_model = models[2]
-        coarse_model.eval()
-
     labeled_num_batches = len(labeled_loader)
     unlabeled_num_batches = len(unlabeled_loader)
 
@@ -59,10 +55,6 @@ def train(args, global_epoch, labeled_loader, unlabeled_loader, optimizer, crite
 
         inputs_x, targets_x = inputs_x.to(args.device).float(), targets_x.to(args.device)
 
-        if args.stage == 'fine' or args.stage == 'soft':
-            coarse_output = coarse_model(inputs_x)
-            inputs_x = torch.cat((coarse_output, inputs_x), dim=1)
-
         if not args.baseline:
             try:
                 data = unlabeled_train_iter.next()
@@ -72,10 +64,6 @@ def train(args, global_epoch, labeled_loader, unlabeled_loader, optimizer, crite
             
             inputs_stu = data['img']
             inputs_stu = inputs_stu.to(args.device).float()
-
-            if args.stage == 'fine' or args.stage == 'soft':
-                coarse_output = coarse_model(inputs_stu)
-                inputs_stu = torch.cat((coarse_output, inputs_stu), dim=1)
 
             inputs_ema = torch.clone(inputs_stu)
             
@@ -98,15 +86,16 @@ def train(args, global_epoch, labeled_loader, unlabeled_loader, optimizer, crite
 
         visual_preds = torch.sigmoid(logits_x).detach().cpu()
 
-        visual_preds_Ch1 = vutils.make_grid(visual_preds[:, 0, :, :].unsqueeze(1), normalize=True, scale_each=True)
-        if not args.stage == 'soft':
-            visual_preds_Ch2 = vutils.make_grid(visual_preds[:, 1, :, :].unsqueeze(1), normalize=True, scale_each=True)
+        if args.stage == 'both':
+            visual_preds_Ch1 = vutils.make_grid(visual_preds[:, 0, :, :].unsqueeze(1), normalize=True, scale_each=True)
+        visual_preds_Ch2 = vutils.make_grid(visual_preds[:, 1, :, :].unsqueeze(1), normalize=True, scale_each=True)
 
         writer.add_image('img/train_img', visual_image, iter_num)
         writer.add_image('img/train_mask', visual_mask, iter_num)
-        writer.add_image('img/train_preds_1Ch', visual_preds_Ch1, iter_num)
-        if not args.stage == 'soft':
-            writer.add_image('img/train_preds_2Ch', visual_preds_Ch2, iter_num)
+
+        if args.stage == 'both':
+            writer.add_image('img/train_preds_1Ch', visual_preds_Ch1, iter_num)
+        writer.add_image('img/train_preds_2Ch', visual_preds_Ch2, iter_num)
 
         logits_x = logits_x.reshape(logits_x.size(0), args.n_classes, -1)
         targets_x = targets_x.reshape(targets_x.size(0), 1, -1)
@@ -153,11 +142,6 @@ def validate(args, global_epoch, val_loader, optimizer, criterion, writer, is_em
         model = models[0]
 
     model.eval()
-
-    if args.stage == 'fine' or args.stage =='soft':
-        coarse_model = models[2]
-        coarse_model.eval()
-    
     loss_sum = 0
     dice_tensor = np.zeros((len(val_loader), args.n_classes))
 
@@ -167,10 +151,6 @@ def validate(args, global_epoch, val_loader, optimizer, criterion, writer, is_em
             img, mask = data['img'], data['mask']
             img = img.to(args.device).float()  # (batch_size, 1, 96, 96)
             mask = mask.to(args.device).float()
-
-            if args.stage == 'fine' or args.stage == 'soft':
-                coarse_output = coarse_model(img)
-                img = torch.cat((coarse_output, img), dim=1)
 
             output = model(img)
 

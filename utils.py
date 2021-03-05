@@ -5,20 +5,6 @@ import numpy as np
 import torch
 
 
-def mask2onehot(mask, stage):
-
-    if stage == 'coarse':
-        cat_index = [0, 1]
-    elif stage == 'fine':
-        cat_index = [2, 3]
-    else:
-        raise NotImplementedError
-
-    _mask = [mask == i for i in cat_index]
-    _mask = np.array(_mask).astype(np.uint8)
-    return _mask
-
-
 def dice_coef(inputs, targets, stage):
 
     inputs = inputs.permute(0,2,1).contiguous().view(-1, inputs.size(1))
@@ -29,12 +15,10 @@ def dice_coef(inputs, targets, stage):
 
     prob = torch.sigmoid(inputs)
 
-    if stage == 'coarse':
-        t_one_hot = t_one_hot[:, 0:2]
-    elif stage == 'fine':
-        t_one_hot = t_one_hot[:, 2:4]
-    elif stage == 'soft':
-        t_one_hot = t_one_hot[:, 3:4]
+    if stage == 'both':
+        t_one_hot = t_one_hot[:, 1:3]
+    elif stage == 'plaque':
+        t_one_hot = t_one_hot[:, 2:3]
     else:
         pass
 
