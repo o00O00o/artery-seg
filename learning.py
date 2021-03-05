@@ -98,13 +98,15 @@ def train(args, global_epoch, labeled_loader, unlabeled_loader, optimizer, crite
 
         visual_preds = torch.sigmoid(logits_x).detach().cpu()
 
-        visual_preds_Ch1 = vutils.make_grid(visual_preds[:, 1, :, :].unsqueeze(1), normalize=True, scale_each=True)
-        visual_preds_Ch2 = vutils.make_grid(visual_preds[:, 1, :, :].unsqueeze(1), normalize=True, scale_each=True)
+        visual_preds_Ch1 = vutils.make_grid(visual_preds[:, 0, :, :].unsqueeze(1), normalize=True, scale_each=True)
+        if not args.stage == 'soft':
+            visual_preds_Ch2 = vutils.make_grid(visual_preds[:, 1, :, :].unsqueeze(1), normalize=True, scale_each=True)
 
         writer.add_image('img/train_img', visual_image, iter_num)
         writer.add_image('img/train_mask', visual_mask, iter_num)
         writer.add_image('img/train_preds_1Ch', visual_preds_Ch1, iter_num)
-        writer.add_image('img/train_preds_2Ch', visual_preds_Ch2, iter_num)
+        if not args.stage == 'soft':
+            writer.add_image('img/train_preds_2Ch', visual_preds_Ch2, iter_num)
 
         logits_x = logits_x.reshape(logits_x.size(0), args.n_classes, -1)
         targets_x = targets_x.reshape(targets_x.size(0), 1, -1)

@@ -111,13 +111,13 @@ def record_dataset(args):
         for i in range(mask_vol.shape[0]):
             if mask_vol[i, int((mask_vol.shape[1] - 1) / 2), int((mask_vol.shape[2] - 1) / 2)] != 0:
                 unique = np.unique(mask_vol[i])
-                if 2 in unique or 3 in unique:
+                if 3 in unique:
                     case_list.append(file_path.split("/")[6])
                     branch_list.append(file_path.split("/")[7])
                     slice_list.append(i)
         
     df = pd.DataFrame({'case_id': case_list, 'branch_id': branch_list, 'slice_id': slice_list})
-    df.to_csv('./plaque_info.csv', index=False)
+    df.to_csv('artery-seg/soft.csv', index=False)
 
 
 def count_dataset(args):

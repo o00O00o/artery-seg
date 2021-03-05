@@ -85,6 +85,8 @@ class AugmentDataset(Dataset):
             query_table = df.loc[df['case_id'].isin(range(args.unlabeled_num))]
         elif type == 'label':
             query_table = df.loc[df['case_id'].isin(range(args.unlabeled_num, args.unlabeled_num + args.labeled_num))]
+        elif type == 'val':
+            query_table = df.loc[df['case_id'].isin(range(args.unlabeled_num + args.labeled_num, args.case_num))]
         
         self.dataset = []
         for idx, row in query_table.iterrows():

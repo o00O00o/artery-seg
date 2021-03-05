@@ -4,6 +4,7 @@ import logging
 import numpy as np
 import argparse
 from pathlib import Path
+import shutil
 from dataset import split_dataset, Probe_Dataset
 from torch.utils.data import DataLoader, ConcatDataset, random_split
 from initialization import initialization
@@ -22,7 +23,7 @@ def parse_args():
     parser.add_argument('--n_classes', type=int, default=2, help='classes for segmentation')
     parser.add_argument('--seed', type=int, default=4, help='set seed point')
     parser.add_argument('--crop_size', type=int, default=64, help='size for square patch')
-    parser.add_argument('--batch_size', type=int, default=64, help='Batch Size during training [default: 256]')
+    parser.add_argument('--batch_size', type=int, default=100, help='Batch Size during training [default: 256]')
     parser.add_argument('--epoch', default=400, type=int, help='Epoch to run [default: 300]')
     parser.add_argument('--num_workers', default=4, type=int, help='num workers')
     parser.add_argument('--learning_rate', default=1e-3, type=float, help='Initial learning rate [default: 0.001]')
@@ -38,12 +39,13 @@ def parse_args():
     parser.add_argument('--resume', action="store_true", help='whether to resume from the checkpoint')
     parser.add_argument('--log_string', type=str, default=None, help='log string wrapper [default: None]')
     parser.add_argument('--device', type=str, default=None, help='set device type')
-    parser.add_argument('--stage', type=str, default='fine', help='mark of coarse stage')
+    parser.add_argument('--stage', type=str, default='soft', help='mark of coarse stage')
 
     # path configurations
     parser.add_argument('--log_dir', type=str, default=None, help='Log path [default: None]')
-    parser.add_argument('--aug_list_dir', default='./plaque_info.csv', type=str)
-    parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
+    parser.add_argument('--aug_list_dir', default='artery-seg/soft.csv', type=str)
+    parser.add_argument('--data_dir', default='/home/gyb/Datasets/plaques/all_subset_v3', help='folder name for training set')
+    # parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset_v3', help='folder name for training set')
     # parser.add_argument('--data_dir', default='/Users/gaoyibo/Datasets/plaques/all_subset', help='folder name for training set')
     # parser.add_argument('--data_dir', default='/mnt/lustre/wanghuan3/gaoyibo/all_subset_v3', help='folder name for training set')
 
@@ -74,9 +76,11 @@ def set_seed(args):
 
 def make_dir_log(args):
     # setup experimental logs dir ---------------------------------------
-    experiment_dir = Path('./log/')
+    experiment_dir = Path('artery-seg/log/')
     experiment_dir.mkdir(exist_ok=True)
     log_dir = experiment_dir.joinpath(args.experiment_name)
+    if log_dir.is_dir() and not args.resume:
+        shutil.rmtree(log_dir)
     log_dir.mkdir(exist_ok=True)
     args.log_dir = log_dir
 
@@ -114,9 +118,11 @@ def main(args):
     args.log_string("Weights for classes:{}".format(args.n_weights))
 
     if args.over_sample:
-        part_set, _ = random_split(labeled_set, [6000, len(labeled_set)-6000])
-    #     unlabeled_set = ConcatDataset([AugmentDataset(args, 'unlabel'), unlabeled_set])
-        labeled_set = ConcatDataset([AugmentDataset(args, 'label'), part_set])
+        # part_set, _ = random_split(labeled_set, [6000, len(labeled_set)-6000])
+        # unlabeled_set = ConcatDataset([AugmentDataset(args, 'unlabel'), unlabeled_set])
+        # labeled_set = ConcatDataset([AugmentDataset(args, 'label'), part_set])
+        labeled_set = AugmentDataset(args, 'label')
+        val_set = AugmentDataset(args, 'val')
 
     try:
         labeled_loader = DataLoader(labeled_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
@@ -220,7 +226,8 @@ if __name__ == "__main__":
 
     args = parse_args()
 
-    args.all_label = True
+    # args.all_label = True
+    args.over_sample = True
     args.baseline = True
 
     if args.all_label:

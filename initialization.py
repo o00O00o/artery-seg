@@ -42,7 +42,7 @@ def initialization(args):
     
     if args.stage == 'fine' or args.stage == 'soft':
         coarse_model = MODEL.get_module(args.slices, 2, 4, 4, True, True).to(args.device)
-        checkpoint = torch.load('./best_model.pth', map_location='cpu')
+        checkpoint = torch.load('artery-seg/best_model.pth', map_location='cpu')
         coarse_model.load_state_dict(checkpoint["model_state_dict"])
 
     # optimizer initialization -----------------------------------------
